@@ -15,7 +15,7 @@ def main():
         print("✅ Database initialized successfully!")
 
     elif args.command == "update":
-        print("📊 Fetching latest stock, macroeconomic data, and news...")
+        print("📊 Fetching latest stock, macroeconomic data, news, and Reddit sentiment...")
         update_database()
         print("✅ All data updated!")
 
