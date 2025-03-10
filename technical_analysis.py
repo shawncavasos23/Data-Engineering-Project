@@ -69,18 +69,20 @@ def store_technical_indicators(df):
     conn = create_connection()
     cursor = conn.cursor()
 
-    data = df[['ticker', 'MA50', 'MA200', 'MACD', 'Signal_Line', 'RSI', 'Upper_Band', 'Lower_Band']]
-    for index, row in data.iterrows():
+    for index, row in df.iterrows():
         cursor.execute("""
-            INSERT INTO indicators (ticker, date, ma50, ma200, macd, signal_line, rsi, upper_band, lower_band)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (row['ticker'], index.strftime("%Y-%m-%d"), row['MA50'], row['MA200'], row['MACD'], row['Signal_Line'], row['RSI'], row['Upper_Band'], row['Lower_Band']))
+            INSERT OR REPLACE INTO technicals (ticker, date, ma50, ma200, macd, signal_line, rsi, upper_band, lower_band, volume)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            row['ticker'], index.strftime("%Y-%m-%d"), row['MA50'], row['MA200'],
+            row['MACD'], row['Signal_Line'], row['RSI'], row['Upper_Band'], row['Lower_Band'], row['volume']
+        ))
 
     conn.commit()
     conn.close()
 
-def run(ticker):
-    """Fetch stock data, calculate indicators, and store in database."""
+def run_technical_analysis(ticker):
+    """Fetch stock data, calculate indicators, and store in the database."""
     stock_data = get_stock_data(ticker)
 
     if isinstance(stock_data, str):
@@ -91,4 +93,3 @@ def run(ticker):
 
     store_technical_indicators(stock_data)
     return stock_data.tail(1).to_dict(orient='records')[0]  # Return latest technicals
-
