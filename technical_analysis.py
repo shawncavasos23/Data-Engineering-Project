@@ -6,6 +6,7 @@ from database import create_connection
 API_KEY = '67c1133a5815d0.62294566'
 
 def get_stock_data(symbol, exchange='US', interval='daily', output_size='full'):
+    """Fetch historical stock data from the API."""
     base_url = "https://eodhistoricaldata.com/api/eod/"
     url = f"{base_url}{symbol}.{exchange}"
 
@@ -69,16 +70,17 @@ def store_technical_indicators(df):
     cursor = conn.cursor()
 
     data = df[['ticker', 'MA50', 'MA200', 'MACD', 'Signal_Line', 'RSI', 'Upper_Band', 'Lower_Band']]
-    for _, row in data.iterrows():
+    for index, row in data.iterrows():
         cursor.execute("""
             INSERT INTO indicators (ticker, date, ma50, ma200, macd, signal_line, rsi, upper_band, lower_band)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (row.name, row['ticker'], row['MA50'], row['MA200'], row['MACD'], row['Signal_Line'], row['RSI'], row['Upper_Band'], row['Lower_Band']))
+        """, (row['ticker'], index.strftime("%Y-%m-%d"), row['MA50'], row['MA200'], row['MACD'], row['Signal_Line'], row['RSI'], row['Upper_Band'], row['Lower_Band']))
 
     conn.commit()
     conn.close()
 
 def run(ticker):
+    """Fetch stock data, calculate indicators, and store in database."""
     stock_data = get_stock_data(ticker)
 
     if isinstance(stock_data, str):
@@ -89,3 +91,4 @@ def run(ticker):
 
     store_technical_indicators(stock_data)
     return stock_data.tail(1).to_dict(orient='records')[0]  # Return latest technicals
+
