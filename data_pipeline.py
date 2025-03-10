@@ -1,23 +1,27 @@
-import sys
-import os
-
-# Ensure Python can find local modules
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-from fundamental_analysis import run as run_fundamental
-from technical_analysis import run as run_technical
-from database import create_connection
+from macroeconomic_analysis import fetch_economic_data
+from news_analysis import fetch_news
+from technical_analysis import run_technical_analysis
+from fundamental_analysis import run_fundamental_analysis
 
 def update_database():
-    """Fetches and updates the database with technical and fundamental data."""
-    tickers = ["CVX"]
+    """Updates stock, macroeconomic, and news data in the database."""
+    print("📊 Fetching latest macroeconomic data...")
+    fetch_economic_data()
+    
+    print("📰 Fetching latest news headlines...")
+    fetch_news()
+    
+    print("✅ All data updated in the database.")
 
-    for ticker in tickers:
-        print(f"📉 Running Technical Analysis for {ticker}...")
-        run_technical(ticker)
+def run_analysis(ticker):
+    """Runs fundamental & technical analysis, incorporating macroeconomic trends and news."""
+    print(f"📉 Running Technical Analysis for {ticker}...")
+    technical_result = run_technical_analysis(ticker)
 
-        print(f"🏦 Running Fundamental Analysis for {ticker}...")
-        result = run_fundamental(ticker)
-        print(result)
+    print(f"🏦 Running Fundamental Analysis for {ticker}...")
+    fundamental_result = run_fundamental_analysis(ticker)
 
-    print("✅ Database updated with latest financial data!")
+    return {
+        "technical": technical_result,
+        "fundamental": fundamental_result
+    }
