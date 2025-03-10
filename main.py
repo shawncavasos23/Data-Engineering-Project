@@ -1,19 +1,11 @@
 import argparse
-import subprocess
 from database import initialize_database
-from data_pipeline import update_database
-from technical_analysis import run as run_technical
-from fundamental_analysis import run as run_fundamental
-
-def run_dashboard():
-    """Start the Dash web app."""
-    subprocess.run(["python", "app.py"])
+from data_pipeline import update_database, run_analysis
 
 def main():
-    """Main entry point for the trading system."""
     parser = argparse.ArgumentParser(description="Trading Dashboard Controller")
-    parser.add_argument("command", choices=["init", "update", "run", "tech", "fund"], help="Command to execute")
-    parser.add_argument("--ticker", type=str, help="Ticker symbol (for 'tech' and 'fund' commands)")
+    parser.add_argument("command", choices=["init", "update", "analyze"], help="Command to execute")
+    parser.add_argument("--ticker", type=str, help="Stock ticker for analysis (e.g., AAPL)")
 
     args = parser.parse_args()
 
@@ -23,31 +15,18 @@ def main():
         print("✅ Database initialized successfully!")
 
     elif args.command == "update":
-        print("📊 Fetching latest stock data and indicators...")
+        print("📊 Fetching latest stock, macroeconomic data, and news...")
         update_database()
-        print("✅ Database updated with latest financial data!")
+        print("✅ All data updated!")
 
-    elif args.command == "tech":
-        if args.ticker:
-            print(f"📉 Running Technical Analysis for {args.ticker}...")
-            result = run_technical(args.ticker)
-            print("✅ Technical Indicators Updated!")
-            print(result)
-        else:
-            print("⚠ Please specify a ticker using --ticker (e.g., python main.py tech --ticker AAPL)")
-
-    elif args.command == "fund":
-        if args.ticker:
-            print(f"🏦 Running Fundamental Analysis for {args.ticker}...")
-            result = run_fundamental(args.ticker)
-            print("✅ Fundamental Data Updated!")
-            print(result)
-        else:
-            print("⚠ Please specify a ticker using --ticker (e.g., python main.py fund --ticker AAPL)")
-
-    elif args.command == "run":
-        print("🚀 Launching Trading Dashboard...")
-        run_dashboard()
+    elif args.command == "analyze":
+        if not args.ticker:
+            print("⚠ Please specify a stock ticker using --ticker <TICKER>")
+            return
+        
+        print(f"📈 Running analysis for {args.ticker}...")
+        result = run_analysis(args.ticker)
+        print(result)
 
 if __name__ == "__main__":
     main()

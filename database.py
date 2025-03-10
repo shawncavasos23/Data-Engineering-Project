@@ -1,45 +1,21 @@
 import sqlite3
 
-DB_NAME = "trading_data.db"
-
 def create_connection():
-    """Create a database connection."""
-    conn = sqlite3.connect(DB_NAME)
-    return conn
+    """Create or connect to the SQLite database."""
+    return sqlite3.connect("trading_data.db")
 
 def initialize_database():
-    """Create tables if they don’t exist."""
+    """Create tables for fundamentals, technical indicators, macroeconomic data, and news headlines."""
     conn = create_connection()
     cursor = conn.cursor()
 
+    # Create or update database tables
     cursor.executescript("""
-    CREATE TABLE IF NOT EXISTS stocks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ticker TEXT NOT NULL,
-        date TEXT NOT NULL,
-        open REAL,
-        high REAL,
-        low REAL,
-        close REAL,
-        volume INTEGER
-    );
-
-    CREATE TABLE IF NOT EXISTS indicators (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ticker TEXT NOT NULL,
-        date TEXT NOT NULL,
-        ma50 REAL,
-        ma200 REAL,
-        macd REAL,
-        signal_line REAL,
-        rsi REAL,
-        upper_band REAL,
-        lower_band REAL
-    );
-
+    -- Fundamentals Table: Stores financial ratios, sector data, and clustering info
     CREATE TABLE IF NOT EXISTS fundamentals (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ticker TEXT NOT NULL,
+        ticker TEXT NOT NULL UNIQUE,
+        sector TEXT,
         pe_ratio REAL,
         market_cap REAL,
         revenue REAL,
@@ -48,11 +24,46 @@ def initialize_database():
         roe REAL,
         cluster INTEGER DEFAULT NULL
     );
+
+    -- Technical Indicators Table: Stores stock trading indicators
+    CREATE TABLE IF NOT EXISTS technicals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ticker TEXT NOT NULL,
+        date DATE NOT NULL,
+        ma50 REAL,
+        ma200 REAL,
+        macd REAL,
+        signal_line REAL,
+        rsi REAL,
+        upper_band REAL,
+        lower_band REAL,
+        volume INTEGER,
+        UNIQUE(ticker, date)
+    );
+
+    -- Macroeconomic Data Table: Stores key economic indicators over time
+    CREATE TABLE IF NOT EXISTS macroeconomic_data (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        indicator TEXT NOT NULL,
+        date DATE NOT NULL,
+        value REAL,
+        UNIQUE(indicator, date)
+    );
+
+    -- News Table: Stores the latest financial news headlines
+    CREATE TABLE IF NOT EXISTS news (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source TEXT,
+        title TEXT,
+        description TEXT,
+        url TEXT,
+        published_at DATETIME,
+        UNIQUE(title, published_at)
+    );
     """)
 
     conn.commit()
     conn.close()
 
-if __name__ == "__main__":
-    initialize_database()
-    print("✅ Database initialized successfully!")
+# Initialize the database when the script is first run
+initialize_database()
