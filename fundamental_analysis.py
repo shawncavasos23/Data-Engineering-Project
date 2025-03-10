@@ -137,7 +137,7 @@ def get_cluster_peers(ticker):
 
     return []
 
-def run(ticker):
+def run_fundamental_analysis(ticker):
     """Fetches fundamental data, finds same-sector companies, and clusters."""
     
     print(f"Fetching fundamental data for {ticker}...")
