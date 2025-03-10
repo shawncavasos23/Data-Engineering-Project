@@ -2,7 +2,8 @@ import pandas as pd
 import requests
 import numpy as np
 from database import create_connection
-from config import API_KEY  # Import API key securely
+
+API_KEY = '67c1133a5815d0.62294566'
 
 def get_stock_data(symbol, exchange='US', interval='daily', output_size='full'):
     base_url = "https://eodhistoricaldata.com/api/eod/"
