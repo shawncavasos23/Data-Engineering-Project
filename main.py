@@ -1,6 +1,6 @@
 import argparse
 from database import initialize_database
-from data_pipeline import update_database, run_analysis_and_send_email
+from data_pipeline import update_stock_data, run_analysis_and_send_email
 
 def main():
     parser = argparse.ArgumentParser(description="Trading Dashboard Controller")
@@ -15,18 +15,22 @@ def main():
         print("Database initialized successfully!")
 
     elif args.command == "update":
-        print("Fetching latest stock, macroeconomic data, news, and Reddit sentiment...")
-        update_database()
-        print("All data updated!")
+        if not args.ticker:
+            print("⚠ Please specify a stock ticker using --ticker <TICKER>")
+            return
+        
+        print(f"Fetching latest stock, macroeconomic data, news, and Reddit sentiment for {args.ticker}...")
+        update_stock_data(args.ticker)
+        print(f"✅ Data updated successfully for {args.ticker}.")
 
     elif args.command == "analyze":
         if not args.ticker:
-            print("Please specify a stock ticker using --ticker <TICKER>")
+            print("⚠ Please specify a stock ticker using --ticker <TICKER>")
             return
         
-        print(f"Running analysis for {args.ticker} and sending email...")
+        print(f"Running AI-powered analysis for {args.ticker}...")
         run_analysis_and_send_email(args.ticker)
-        print("Analysis complete. Email sent.")
+        print(f"✅ AI analysis complete. Results sent via email.")
 
 if __name__ == "__main__":
     main()

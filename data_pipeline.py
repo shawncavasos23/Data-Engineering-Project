@@ -1,96 +1,145 @@
-import openai  # type: ignore
+import openai # type: ignore
 import sqlite3
-import pandas as pd  # type: ignore
+import pandas as pd # type: ignore
 from technical_analysis import run_technical_analysis
 from fundamental_analysis import run_fundamental_analysis
 from macroeconomic_analysis import fetch_economic_data
 from news_analysis import fetch_news
 from reddit_analysis import run_reddit_analysis
 from database import create_connection
+from email_utils import send_email  # Import email function
 
 # Securely load OpenAI API Key
 api_key = "your_openai_api_key"
 
-def update_database():
+def update_stock_data(ticker):
     """
-    Fetches the latest stock, macroeconomic indicators, news, and sentiment data, and updates the database.
+    Fetches the latest stock, macroeconomic indicators, news, and sentiment data for a specific ticker.
     """
-    
+
+    print(f"Updating data for {ticker}...")
+
     # Connect to SQLite database
     conn = create_connection()
     cursor = conn.cursor()
 
-    # 🔹 **Step 1: Get List of Tracked Tickers**
-    cursor.execute("SELECT DISTINCT ticker FROM fundamentals")
-    tracked_tickers = [row[0] for row in cursor.fetchall()]
-
-    if not tracked_tickers:
-        print("No tickers found in the database. Please initialize with stock data first.")
+    # Ensure ticker exists in the database
+    cursor.execute("SELECT COUNT(*) FROM fundamentals WHERE ticker = ?", (ticker,))
+    if cursor.fetchone()[0] == 0:
+        print(f"⚠ {ticker} not found in database. Please add it before updating.")
+        conn.close()
         return
 
-    # 🔹 **Step 2: Update Technical & Fundamental Data for Each Ticker**
-    for ticker in tracked_tickers:
-        print(f"Running Technical Analysis for {ticker}...")
-        run_technical_analysis(ticker)
+    # 🔹 **Step 1: Update Technical & Fundamental Data**
+    print(f"Running Technical Analysis for {ticker}...")
+    run_technical_analysis(ticker)
 
-        print(f"Running Fundamental Analysis for {ticker}...")
-        run_fundamental_analysis(ticker)
+    print(f"Running Fundamental Analysis for {ticker}...")
+    run_fundamental_analysis(ticker)
 
-        print(f"Running Reddit Sentiment & Google Trends Analysis for {ticker}...")
-        run_reddit_analysis(ticker)
+    print(f"Running Reddit Sentiment & Google Trends Analysis for {ticker}...")
+    run_reddit_analysis(ticker)
 
-    # 🔹 **Step 3: Update Macroeconomic Data**
+    # 🔹 **Step 2: Update Macroeconomic & News Data**
     print("Fetching latest macroeconomic data...")
     macro_data = fetch_economic_data()
 
-    # 🔹 **Step 4: Update Latest News Data**
     print("Fetching latest news headlines...")
     news_data = fetch_news()
 
-    # Commit changes and close the connection
     conn.commit()
     conn.close()
+    print(f"✅ Data updated for {ticker}.")
 
-    print("All data updated in the database.")
-
-def run_analysis(ticker):
+def extract_existing_data(ticker):
     """
-    Performs AI-powered trading analysis using all available financial data sources.
+    Extracts existing stock data, fundamental analysis, technical indicators, macroeconomic trends, news, and sentiment 
+    from the database instead of making new API calls.
     """
-    print(f"**Running AI-powered analysis for {ticker}...**")
 
-    # 🔹 Fetch Latest Data from Each Analysis
-    technicals = run_technical_analysis(ticker)
-    fundamentals = run_fundamental_analysis(ticker)
-    macro_trends = fetch_economic_data()
-    latest_news = fetch_news()
-    sentiment_analysis = run_reddit_analysis(ticker)
+    conn = create_connection()
+    
+    # Extract Fundamentals
+    fundamentals_query = "SELECT * FROM fundamentals WHERE ticker = ?"
+    fundamentals = pd.read_sql(fundamentals_query, conn, params=(ticker,))
+
+    # Extract Peer Companies from Clustering
+    peer_query = """
+    SELECT f.ticker FROM fundamentals f
+    WHERE f.cluster = (SELECT cluster FROM fundamentals WHERE ticker = ?) AND f.ticker != ?
+    """
+    peer_companies = pd.read_sql(peer_query, conn, params=(ticker, ticker))
+
+    # Extract Technical Indicators (Most Recent)
+    technicals_query = """
+    SELECT * FROM technicals WHERE ticker = ? ORDER BY date DESC LIMIT 1
+    """
+    technicals = pd.read_sql(technicals_query, conn, params=(ticker,))
+
+    # Extract Macroeconomic Data (Latest Available)
+    macroeconomic_query = """
+    SELECT indicator, value FROM macroeconomic_data 
+    WHERE date = (SELECT MAX(date) FROM macroeconomic_data)
+    """
+    macro_data = pd.read_sql(macroeconomic_query, conn)
+
+    # Extract Latest News
+    news_query = """
+    SELECT title FROM news ORDER BY published_at DESC LIMIT 5
+    """
+    news_titles = pd.read_sql(news_query, conn)['title'].tolist()
+
+    # Extract Sentiment Data (Reddit Mentions & Google Trends)
+    sentiment_query = """
+    SELECT * FROM reddit_mentions WHERE ticker = ? ORDER BY date DESC LIMIT 1
+    """
+    sentiment_data = pd.read_sql(sentiment_query, conn, params=(ticker,))
+
+    conn.close()
+
+    return {
+        "fundamentals": fundamentals.to_dict(orient="records")[0] if not fundamentals.empty else {},
+        "technical_data": technicals.to_dict(orient="records")[0] if not technicals.empty else {},
+        "macro_data": macro_data.set_index("indicator")["value"].to_dict(),
+        "news_titles": news_titles,
+        "sentiment_data": sentiment_data.to_dict(orient="records")[0] if not sentiment_data.empty else {},
+        "peer_companies": peer_companies["ticker"].tolist()
+    }
+
+def run_analysis_and_send_email(ticker):
+    """
+    Extracts existing financial data from the database and generates an AI-powered trading signal.
+    Sends the results via email.
+    """
+    
+    print(f"Extracting existing data for {ticker}...")
+    extracted_data = extract_existing_data(ticker)
 
     # 🔹 Generate AI Final Trading Signal
     ai_final_trading_signal = get_ai_full_trading_signal(
         ticker,
-        macro_trends,
-        fundamentals,
-        technicals,
-        sentiment_analysis,
-        latest_news.get("economic_data", {}),  # Latest macroeconomic indicators
-        latest_news.get("news_titles", []),  # Top recent news headlines
-        fundamentals.get("peer_companies", [])  # Peer comparison data
+        extracted_data["macro_data"],
+        extracted_data["fundamentals"],
+        extracted_data["technical_data"],
+        extracted_data["sentiment_data"],
+        extracted_data["macro_data"],  # Latest macroeconomic indicators
+        extracted_data["news_titles"],  # Top recent news headlines
+        extracted_data["peer_companies"]  # Peer comparison data
     )
 
-    print("\n**AI-Generated Final Trading Signal & Price Targets:**")
+    print("\nAI-Generated Final Trading Signal & Price Targets:")
     print(ai_final_trading_signal)
 
-    return "\n**AI Analysis Complete!**"
+    # Send AI-generated output via email
+    send_email(
+        subject=f"AI Trading Analysis for {ticker}",
+        body=ai_final_trading_signal
+    )
 
 def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_data, sentiment_data, latest_economic_data, news_titles, peer_companies):
     """
     AI summarizes all generated insights to produce a final trading signal, target prices, and justification.
     """
-
-    # Convert Pandas Series to Dictionary (if applicable)
-    if isinstance(latest_economic_data, pd.Series):
-        latest_economic_data = latest_economic_data.to_dict()
 
     # Format economic indicators for readability
     economic_summary = "\n".join([
@@ -102,7 +151,7 @@ def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_d
     news_bullets = "\n".join([f"- {title}" for title in news_titles])
 
     # Format peer comparison table
-    peer_table = peer_companies.to_markdown(index=False) if isinstance(peer_companies, pd.DataFrame) and not peer_companies.empty else "No peer data available."
+    peer_table = "\n".join([f"- {peer}" for peer in peer_companies]) if peer_companies else "No peer data available."
 
     # --- AI Prompt for Full Trading Analysis ---
     prompt = f"""
@@ -116,12 +165,6 @@ def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_d
     --- 
     
     ## **Macroeconomic Analysis**
-    - **Economic Overview**: How do current macroeconomic conditions affect {ticker}?
-    - **Interest rates & inflation**: What impact do central bank policies have?
-    - **Sector-Specific Trends**: How does the {ticker} sector perform under these conditions?
-    - **GDP Growth & Consumer Trends**: What are the broader economic implications?
-    
-    **Macroeconomic Data:**
     {economic_summary}
 
     **Recent Macroeconomic News:**
@@ -133,13 +176,6 @@ def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_d
     --- 
     
     ## **Fundamental Analysis**
-    - **Valuation Metrics**: P/E ratio, P/B ratio, P/S ratio, EV/EBITDA
-    - **Growth Metrics**: Revenue trends, earnings growth, future projections
-    - **Profitability Metrics**: Gross margin, return on equity (ROE), return on assets (ROA)
-    - **Financial Stability**: Debt-to-equity, free cash flow, institutional ownership
-    - **Competitive Moat**: Does {ticker} have an advantage over competitors?
-
-    **Company Fundamentals:**
     {fundamental_data}
 
     **Peer Company Comparison:**
@@ -148,24 +184,11 @@ def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_d
     --- 
     
     ## **Technical Analysis**
-    - **Trend Strength**: Is {ticker} in an uptrend, downtrend, or range-bound?
-    - **Momentum Indicators**: RSI (Relative Strength Index), MACD (Moving Average Convergence Divergence)
-    - **Volatility & Bollinger Bands**: Key resistance and support levels
-    - **Moving Averages**: 50-day and 200-day MA
-    - **Trading Volume & Institutional Activity**: Any major unusual buying or selling?
-
-    **Technical Indicators:**
     {technical_data}
 
     --- 
     
     ## **Sentiment & Market Psychology**
-    - **Retail Investor Sentiment**: How is {ticker} being discussed on social media?
-    - **Options Market Trends**: Are traders positioning for bullish or bearish moves?
-    - **Financial News Sentiment**: Are analysts upgrading or downgrading?
-    - **Insider Transactions**: Are executives buying or selling shares?
-
-    **Reddit & Market Sentiment:**
     {sentiment_data}
 
     --- 
@@ -173,7 +196,6 @@ def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_d
     ## **Final AI-Generated Trading Strategy**
     **Final Trading Signal:**  
        - Should traders **BUY, SELL, or HOLD** {ticker}?  
-       - Confidence level: **High, Medium, or Low**?  
 
     **Price Targets:**  
        - **BUY Target Price:** Where should traders enter?  
@@ -183,18 +205,13 @@ def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_d
     **Justification:**  
        - Combine macroeconomic, fundamental, technical, and sentiment insights.
        - Identify **key risks and catalysts** for {ticker} in the next 3-6 months.
-    
-    **Provide a structured, professional response suitable for institutional investors.**
     """
 
     try:
         client = openai.OpenAI(api_key=api_key)
         response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are a professional financial strategist providing detailed, multi-factor trading analysis."},
-                {"role": "user", "content": prompt}
-            ],
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
             max_tokens=1000
         )
