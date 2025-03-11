@@ -1,28 +1,30 @@
 import smtplib
 import ssl
-from email.message import EmailMessage
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
-# 🔹 **Set Your Email Credentials**
-EMAIL_SENDER = "your_email@gmail.com"
-EMAIL_PASSWORD = "your_app_password"
-EMAIL_RECEIVER = "your_email@gmail.com"  # Change to your recipient email
+# Email credentials
+EMAIL_SENDER = "5214project@gmail.com"
+EMAIL_PASSWORD = "NUSPROJECT2025!"  # App password (replace if needed)
+EMAIL_RECEIVER = "5214project@gmail.com"
 
 def send_email(subject, body):
-    """
-    Sends an email with the AI-generated trading signal.
-    """
-
-    msg = EmailMessage()
-    msg.set_content(body)
-    msg["Subject"] = subject
-    msg["From"] = EMAIL_SENDER
-    msg["To"] = EMAIL_RECEIVER
-
+    """Sends an email with AI trading analysis results."""
     try:
+        msg = MIMEMultipart()
+        msg["From"] = EMAIL_SENDER
+        msg["To"] = EMAIL_RECEIVER
+        msg["Subject"] = subject
+
+        msg.attach(MIMEText(body, "plain"))
+
+        # Establish connection with Gmail SMTP server
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
             server.login(EMAIL_SENDER, EMAIL_PASSWORD)
-            server.send_message(msg)
-            print("✅ Email successfully sent!")
+            server.sendmail(EMAIL_SENDER, EMAIL_RECEIVER, msg.as_string())
+
+        print(f"Email successfully sent to {EMAIL_RECEIVER}!")
+
     except Exception as e:
-        print(f"❌ Failed to send email: {e}")
+        print(f"Failed to send email: {e}")
