@@ -60,48 +60,7 @@ def store_reddit_mentions(ticker):
     finally:
         conn.close()
 
-def fetch_google_trends(ticker):
-    """Fetch Google Trends data for a stock ticker."""
-    print(f"Fetching Google Trends data for {ticker}...")
-    pytrends = TrendReq(hl='en-US', tz=360)
-
-    try:
-        pytrends.build_payload([ticker], cat=0, timeframe='today 12-m', geo='', gprop='')
-        df = pytrends.interest_over_time()
-        if df.empty:
-            print(f"⚠ No Google Trends data available for {ticker}.")
-            return []
-
-        return [(ticker, date.strftime("%Y-%m-%d"), int(value)) for date, value in df[ticker].items()]
-    except Exception as e:
-        print(f"Error fetching Google Trends data for {ticker}: {e}")
-        return []
-
-def store_google_trends(ticker):
-    """Fetch and store Google Trends data in the database."""
-    trends = fetch_google_trends(ticker)
-    if not trends:
-        print(f"No Google Trends data to store for {ticker}.")
-        return
-
-    conn = create_connection()
-    cursor = conn.cursor()
-
-    try:
-        cursor.executemany("""
-            INSERT OR REPLACE INTO google_trends (ticker, date, search_interest)
-            VALUES (?, ?, ?)
-        """, trends)
-        conn.commit()
-        print(f"Stored {len(trends)} Google Trends records for {ticker}.")
-    except Exception as e:
-        print(f"⚠ Database error storing Google Trends data: {e}")
-    finally:
-        conn.close()
-
 def run_reddit_analysis(ticker):
     """Fetch and store Reddit mentions & Google Trends data for a ticker."""
     store_reddit_mentions(ticker)
-    store_google_trends(ticker)
-
-    return {"ticker": ticker, "reddit_mentions": len(get_recent_ticker_mentions(ticker)), "google_trends": len(fetch_google_trends(ticker))}
+    return {"ticker": ticker, "reddit_mentions": len(get_recent_ticker_mentions(ticker))}

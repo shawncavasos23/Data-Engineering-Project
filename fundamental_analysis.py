@@ -27,11 +27,10 @@ def get_sector_peers(ticker, sp500_df):
     same_sector_tickers = sp500_df[sp500_df['sector'] == sector]['ticker'].tolist()
     
     print(f"Sector for {ticker}: {sector}")
-    print(f"Found {len(same_sector_tickers)} tickers in the same sector.")
 
     return same_sector_tickers
 
-API_KEY = "rfxtGuPO4lt5yNQOIuS4r7P27L508Mvt"
+API_KEY = "hPCjYsWS9RDgqCjJCH2mXa3CCk5LR1lu"
 
 def get_fundamental_data(ticker):
     """Fetch fundamental financial data and sector info for a given stock, with retries on failure."""
@@ -190,7 +189,7 @@ def run_fundamental_analysis(ticker):
     if ticker not in same_sector_tickers:
         same_sector_tickers.append(ticker)  # Ensure main ticker is included
 
-    selected_tickers = same_sector_tickers[:39]  # Limit to 40 total
+    selected_tickers = same_sector_tickers[:19]  # Limit to 20 total
 
     sector_data = []
     for tkr in selected_tickers:
