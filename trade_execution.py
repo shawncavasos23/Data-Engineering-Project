@@ -19,6 +19,7 @@ def place_trade(ticker, signal, buy_price, sell_price, stop_loss):
     :param sell_price: Target profit-taking price
     :param stop_loss: Stop-loss price to manage risk
     """
+
     try:
         # Get current position to check if we already hold the stock
         positions = api.list_positions()
@@ -26,11 +27,12 @@ def place_trade(ticker, signal, buy_price, sell_price, stop_loss):
         
         if signal == "BUY":
             if current_position:
-                print(f"Already holding {ticker}. No need to buy more.")
+                print(f"Already holding {ticker}. No additional buy needed.")
                 return
-            print(f"Placing a BUY order for {ticker} at {buy_price}...")
+            
+            print(f"Placing a **BUY** order for {ticker} at ${buy_price}...")
 
-            api.submit_order(
+            order = api.submit_order(
                 symbol=ticker,
                 qty=10,  # Modify quantity as needed
                 side="buy",
@@ -38,12 +40,13 @@ def place_trade(ticker, signal, buy_price, sell_price, stop_loss):
                 limit_price=buy_price,
                 time_in_force="gtc"
             )
-            print(f"BUY order placed for {ticker} at {buy_price}")
+            print(f"**BUY Order Placed:** {ticker} at ${buy_price} (Order ID: {order.id})")
 
         elif signal == "SELL":
             if current_position:
-                print(f"Selling {ticker} at {sell_price}...")
-                api.submit_order(
+                print(f"Placing a **SELL** order for {ticker} at ${sell_price}...")
+                
+                order = api.submit_order(
                     symbol=ticker,
                     qty=current_position.qty,
                     side="sell",
@@ -51,12 +54,12 @@ def place_trade(ticker, signal, buy_price, sell_price, stop_loss):
                     limit_price=sell_price,
                     time_in_force="gtc"
                 )
-                print(f"SELL order placed for {ticker} at {sell_price}")
+                print(f"**SELL Order Placed:** {ticker} at ${sell_price} (Order ID: {order.id})")
             else:
-                print(f"No position in {ticker} to sell.")
+                print(f"⚠ No existing position in {ticker} to sell. Skipping SELL order.")
 
         else:
-            print(f"No trade action taken for {ticker} ({signal}).")
+            print(f"No trade action taken for {ticker}. AI signal: {signal}")
 
     except Exception as e:
-        print(f"⚠ Error placing trade: {e}")
+        print(f"**Trade Execution Failed for {ticker}**: {e}")

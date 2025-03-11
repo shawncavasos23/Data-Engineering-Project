@@ -12,7 +12,7 @@ def main():
     if args.command == "init":
         print("Initializing database...")
         initialize_database()
-        print("✅ Database initialized successfully!")
+        print("Database initialized successfully!")
 
     elif args.command == "update":
         if not args.ticker:
@@ -21,7 +21,7 @@ def main():
         
         print(f"Fetching latest stock, macroeconomic data, news, and Reddit sentiment for {args.ticker}...")
         update_stock_data(args.ticker)
-        print(f"✅ Data updated successfully for {args.ticker}.")
+        print(f"Data updated successfully for {args.ticker}.")
 
     elif args.command == "analyze":
         if not args.ticker:
