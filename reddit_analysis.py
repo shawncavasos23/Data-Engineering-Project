@@ -5,10 +5,10 @@ import pandas as pd # type: ignore
 from pytrends.request import TrendReq # type: ignore
 from database import create_connection
 
-# 🔹 Reddit API credentials (replace with real credentials)
-REDDIT_CLIENT_ID = "your_client_id"
-REDDIT_CLIENT_SECRET = "your_client_secret"
-REDDIT_USER_AGENT = "your_user_agent"
+# Reddit API credentials
+REDDIT_CLIENT_ID = "iGbUVH-wZqqHRysT7wIEfg"
+REDDIT_CLIENT_SECRET = "iHq4HqhFESF3WiyLV6mRvCdNdKR_6Q"
+REDDIT_USER_AGENT = "RefrigeratorFew6940:WSB-Tracker:v1.0"
 
 # 🔹 Connect to Reddit API
 reddit = praw.Reddit(
