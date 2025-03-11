@@ -1,5 +1,5 @@
-from kafka import KafkaProducer
-import yfinance as yf
+from kafka import KafkaProducer # type: ignore
+import yfinance as yf # type: ignore
 import json
 import time
 
