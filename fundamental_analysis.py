@@ -147,7 +147,7 @@ def run_fundamental_analysis(ticker):
     if ticker not in same_sector_tickers:
         same_sector_tickers.append(ticker)  # Ensure main ticker is included
 
-    selected_tickers = same_sector_tickers[:39]  # Limit to 20 total
+    selected_tickers = same_sector_tickers[:39]  # Limit to 40 total
 
     sector_data = []
     for tkr in selected_tickers:

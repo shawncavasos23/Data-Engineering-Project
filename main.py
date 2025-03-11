@@ -10,21 +10,21 @@ def main():
     args = parser.parse_args()
 
     if args.command == "init":
-        print("🔧 Initializing database...")
+        print("Initializing database...")
         initialize_database()
-        print("✅ Database initialized successfully!")
+        print("Database initialized successfully!")
 
     elif args.command == "update":
-        print("📊 Fetching latest stock, macroeconomic data, news, and Reddit sentiment...")
+        print("Fetching latest stock, macroeconomic data, news, and Reddit sentiment...")
         update_database()
-        print("✅ All data updated!")
+        print("All data updated!")
 
     elif args.command == "analyze":
         if not args.ticker:
             print("⚠ Please specify a stock ticker using --ticker <TICKER>")
             return
         
-        print(f"📈 Running analysis for {args.ticker}...")
+        print(f"Running analysis for {args.ticker}...")
         result = run_analysis(args.ticker)
         print(result)
 

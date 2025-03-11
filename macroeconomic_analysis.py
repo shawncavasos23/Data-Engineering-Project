@@ -63,16 +63,16 @@ def fetch_economic_data():
                     """, (code, index.strftime("%Y-%m-%d"), row['value']))
 
                 conn.commit()
-                print(f"✅ Retrieved & stored {name} ({code})")
+                print(f"Retrieved & stored {name} ({code})")
 
             else:
-                print(f"⚠ No data available for {name} ({code}). Skipping...")
+                print(f"No data available for {name} ({code}). Skipping...")
 
         except Exception as e:
-            print(f"❌ Could not retrieve {name} ({code}): {e}")
+            print(f"Could not retrieve {name} ({code}): {e}")
 
     conn.close()
-    print("\n✅ All available economic data has been saved to SQLite successfully.")
+    print("\nAll available economic data has been saved to SQLite successfully.")
 
 # Ensure table exists before running
 initialize_database()
