@@ -1,6 +1,6 @@
-import pandas as pd
-import requests
-import numpy as np
+import pandas as pd # type: ignore
+import requests # type: ignore
+import numpy as np # type: ignore
 from database import create_connection
 
 API_KEY = '67c1133a5815d0.62294566'
@@ -62,34 +62,51 @@ def calculate_indicators(df):
     df['Upper_Band'] = df['SMA20'] + (df['20-day_std'] * 2)
     df['Lower_Band'] = df['SMA20'] - (df['20-day_std'] * 2)
 
-    return df
+    return df.dropna()  # Drop NaN values before storing in database
 
 def store_technical_indicators(df):
     """Store calculated technical indicators into the database."""
+    if df.empty:
+        print("No valid technical data to store.")
+        return
+
     conn = create_connection()
     cursor = conn.cursor()
 
-    for index, row in df.iterrows():
-        cursor.execute("""
-            INSERT OR REPLACE INTO technicals (ticker, date, ma50, ma200, macd, signal_line, rsi, upper_band, lower_band, volume)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            row['ticker'], index.strftime("%Y-%m-%d"), row['MA50'], row['MA200'],
-            row['MACD'], row['Signal_Line'], row['RSI'], row['Upper_Band'], row['Lower_Band'], row['volume']
-        ))
+    try:
+        for index, row in df.iterrows():
+            cursor.execute("""
+                INSERT OR REPLACE INTO technicals 
+                (ticker, date, ma50, ma200, macd, signal_line, rsi, upper_band, lower_band, volume)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                row['ticker'], index.strftime("%Y-%m-%d"), row['MA50'], row['MA200'],
+                row['MACD'], row['Signal_Line'], row['RSI'], row['Upper_Band'], row['Lower_Band'], row['volume']
+            ))
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+        print("Technical indicators updated in the database.")
+
+    except Exception as e:
+        print(f"⚠ Database error while storing technical indicators: {e}")
+
+    finally:
+        conn.close()
 
 def run_technical_analysis(ticker):
     """Fetch stock data, calculate indicators, and store in the database."""
+    print(f"Running Technical Analysis for {ticker}...")
+
     stock_data = get_stock_data(ticker)
 
     if isinstance(stock_data, str):
-        return stock_data  # Return error message if API fails
+        print(stock_data)  # Return error message if API fails
+        return
 
     stock_data = stock_data.sort_index()
     stock_data = calculate_indicators(stock_data)
 
     store_technical_indicators(stock_data)
-    return stock_data.tail(1).to_dict(orient='records')[0]  # Return latest technicals
+    
+    latest_data = stock_data.tail(1).to_dict(orient='records')[0] if not stock_data.empty else "No valid data available."
+    return latest_data

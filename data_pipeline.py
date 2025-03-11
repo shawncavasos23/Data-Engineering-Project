@@ -1,30 +1,85 @@
+import openai # type: ignore
+import sqlite3
+import pandas as pd # type: ignore
+from technical_analysis import run as run_technical
+from fundamental_analysis import run as run_fundamental
 from macroeconomic_analysis import fetch_economic_data
-from news_analysis import fetch_news
+from news_analysis import store_latest_news
 from reddit_analysis import run_reddit_analysis
-from technical_analysis import run_technical_analysis
-from fundamental_analysis import run_fundamental_analysis
+from database import create_connection
 
 def update_database():
-    """Updates stock, macroeconomic, news, and Reddit/Google Trends data."""
+    """
+    Fetches the latest stock, macroeconomic indicators, news, and sentiment data, and updates the database.
+    """
+    print("Fetching latest stock, macroeconomic data, news, and Reddit sentiment...")
+
+    # Connect to SQLite database
+    conn = create_connection()
+    cursor = conn.cursor()
+
+    # 🔹 **Step 1: Get List of Tracked Tickers**
+    cursor.execute("SELECT DISTINCT ticker FROM fundamentals")
+    tracked_tickers = [row[0] for row in cursor.fetchall()]
+
+    if not tracked_tickers:
+        print("No tickers found in the database. Please initialize with stock data first.")
+        return
+
+    # 🔹 **Step 2: Update Technical & Fundamental Data for Each Ticker**
+    for ticker in tracked_tickers:
+        print(f"Running Technical Analysis for {ticker}...")
+        run_technical(ticker)
+
+        print(f"Running Fundamental Analysis for {ticker}...")
+        run_fundamental(ticker)
+
+        print(f"Running Reddit Sentiment & Google Trends Analysis for {ticker}...")
+        run_reddit_analysis(ticker)
+
+    # 🔹 **Step 3: Update Macroeconomic Data**
     print("Fetching latest macroeconomic data...")
     fetch_economic_data()
-    
+
+    # 🔹 **Step 4: Update Latest News Data**
     print("Fetching latest news headlines...")
-    fetch_news()
-    
-    print("Fetching Reddit mentions and Google Trends...")
-    run_reddit_analysis("AAPL")  # Example with AAPL
+    store_latest_news()
+
+    # Commit changes and close the connection
+    conn.commit()
+    conn.close()
 
     print("All data updated in the database.")
 
-import openai
-import sqlite3
-import pandas as pd
-from technical_analysis import run as run_technical
-from fundamental_analysis import run as run_fundamental
-from macroeconomic_analysis import get_macro_trends
-from news_analysis import get_latest_news
-from reddit_analysis import analyze_reddit_sentiment
+def run_analysis(ticker):
+    """
+    Performs AI-powered trading analysis using all available financial data sources.
+    """
+    print(f"**Running AI-powered analysis for {ticker}...**")
+
+    # 🔹 Fetch Latest Data from Each Analysis
+    technicals = run_technical(ticker)
+    fundamentals = run_fundamental(ticker)
+    macro_trends = fetch_economic_data()
+    latest_news = store_latest_news()
+    sentiment_analysis = run_reddit_analysis(ticker)
+
+    # 🔹 Generate AI Final Trading Signal
+    ai_final_trading_signal = get_ai_full_trading_signal(
+        ticker,
+        macro_trends,
+        fundamentals,
+        technicals,
+        sentiment_analysis,
+        latest_news["economic_data"],  # Latest macroeconomic indicators
+        latest_news["news_titles"],  # Top recent news headlines
+        fundamentals.get("peer_companies", [])  # Peer comparison data
+    )
+
+    print("\n**AI-Generated Final Trading Signal & Price Targets:**")
+    print(ai_final_trading_signal)
+
+    return "\n**AI Analysis Complete!**"
 
 # OpenAI API Key (Replace with your actual API key)
 api_key = "your_openai_api_key"
@@ -147,41 +202,3 @@ def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_d
         return response.choices[0].message.content.strip()
     except Exception as e:
         return f"Error generating final trading signal: {e}"
-
-def run_analysis(ticker):
-    """Performs AI-powered trading analysis using all available financial data sources."""
-
-    print(f"Analyzing {ticker}...")
-
-    # 🔹 Technical Analysis
-    technicals = run_technical(ticker)
-
-    # 🔹 Fundamental Analysis
-    fundamentals = run_fundamental(ticker)
-
-    # 🔹 Macroeconomic Trends
-    macro_trends = get_macro_trends()
-
-    # 🔹 News Analysis
-    latest_news = get_latest_news()
-
-    # 🔹 Reddit Sentiment Analysis
-    sentiment_analysis = analyze_reddit_sentiment(ticker)
-
-    # 🔹 AI Trading Signal
-    ai_final_trading_signal = get_ai_full_trading_signal(
-        ticker,
-        macro_trends,
-        fundamentals,
-        technicals,
-        sentiment_analysis,
-        latest_news["economic_data"],  # Latest macroeconomic indicators
-        latest_news["news_titles"],  # Top recent news headlines
-        fundamentals["peer_companies"]  # Peer comparison data
-    )
-
-    print("\n**AI-Generated Final Trading Signal & Price Targets:**")
-    print(ai_final_trading_signal)
-
-    return "\nAI Analysis Complete!"
-
