@@ -1,11 +1,20 @@
 import argparse
+import subprocess
 from database import initialize_database
 from data_pipeline import update_stock_data, run_analysis_and_execute_trade
 
 def main():
     parser = argparse.ArgumentParser(description="Trading Dashboard Controller")
-    parser.add_argument("command", choices=["init", "update", "analyze"], help="Command to execute")
-    parser.add_argument("--ticker", type=str, help="Stock ticker for analysis (e.g., AAPL)")
+    parser.add_argument(
+        "command",
+        choices=["init", "update", "analyze", "produce", "consume"],
+        help="Command to execute"
+    )
+    parser.add_argument(
+        "--ticker",
+        type=str,
+        help="Stock ticker for analysis or streaming (e.g., AAPL)"
+    )
 
     args = parser.parse_args()
 
@@ -31,6 +40,22 @@ def main():
         print(f"Running AI-powered analysis for {args.ticker}...")
         result = run_analysis_and_execute_trade(args.ticker)
         print(result)
+
+    elif args.command == "produce":
+        if not args.ticker:
+            print("⚠ Please specify a stock ticker using --ticker <TICKER>")
+            return
+        
+        print(f"Starting Kafka Producer for real-time stock price streaming: {args.ticker}...")
+        subprocess.run(["python", "producer.py", args.ticker])
+
+    elif args.command == "consume":
+        if not args.ticker:
+            print("⚠ Please specify a stock ticker using --ticker <TICKER>")
+            return
+        
+        print(f"Starting Kafka Consumer to plot real-time stock prices: {args.ticker}...")
+        subprocess.run(["python", "consumer.py", args.ticker])
 
 if __name__ == "__main__":
     main()
