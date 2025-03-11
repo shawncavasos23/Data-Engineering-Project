@@ -89,4 +89,3 @@ def fetch_economic_data():
 
 # Ensure table exists before running
 initialize_database()
-
