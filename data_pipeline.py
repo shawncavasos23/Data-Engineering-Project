@@ -8,7 +8,7 @@ from news_analysis import fetch_news
 from reddit_analysis import run_reddit_analysis
 from database import create_connection
 from email_utils import send_email  # Import email function
-from trade_execution import execute_trade  # Import Alpaca trade function
+from trade_execution import place_trade  # Import Alpaca trade function
 
 # Securely load OpenAI API Key
 api_key = "your_api_key"
@@ -139,9 +139,9 @@ def run_analysis_and_execute_trade(ticker):
 
     # **🔹 Execute Trade Based on AI Signal**
     if "BUY" in ai_final_trading_signal:
-        execute_trade(ticker, "buy", 10)  # Example: Buy 10 shares
+        place_trade(ticker, "buy", 10)  # Example: Buy 10 shares
     elif "SELL" in ai_final_trading_signal:
-        execute_trade(ticker, "sell", 10)  # Example: Sell 10 shares
+        place_trade(ticker, "sell", 10)  # Example: Sell 10 shares
 
     return f"✅ AI analysis complete. Trade executed if applicable."
 
