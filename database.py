@@ -67,6 +67,16 @@ def initialize_database():
         link TEXT,
         UNIQUE(ticker, title, date)
     );
+                         
+    CREATE TABLE IF NOT EXISTS trade_signals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ticker TEXT NOT NULL,
+        signal TEXT NOT NULL,
+        buy_price REAL,
+        sell_price REAL,
+        stop_loss REAL,
+        date_generated DATE NOT NULL DEFAULT (DATE('now'))
+    );
     """)
 
     #**Preload 10 Stocks**

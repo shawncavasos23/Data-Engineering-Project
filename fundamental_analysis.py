@@ -30,7 +30,7 @@ def get_sector_peers(ticker, sp500_df):
 
     return same_sector_tickers
 
-API_KEY = "hPCjYsWS9RDgqCjJCH2mXa3CCk5LR1lu"
+API_KEY = "ryvHpF6OKhRpZ4c7YJ4zBv8JD4PwcDbl"
 
 def get_fundamental_data(ticker):
     """Fetch fundamental financial data and sector info for a given stock, with retries on failure."""
