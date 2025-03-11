@@ -69,8 +69,9 @@ def initialize_database():
     );
     """)
 
-    # Ensure AAPL is preloaded in fundamentals
-    cursor.execute("INSERT OR IGNORE INTO fundamentals (ticker) VALUES ('AAPL');")
+    #**Preload 10 Stocks**
+    tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "META", "NVDA", "NFLX", "JPM", "V"]
+    cursor.executemany("INSERT OR IGNORE INTO fundamentals (ticker) VALUES (?);", [(t,) for t in tickers])
    
     conn.commit()
     conn.close()
