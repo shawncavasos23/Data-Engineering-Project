@@ -9,7 +9,7 @@ ALPACA_BASE_URL = "https://paper-api.alpaca.markets"  # Use this for paper tradi
 # Initialize Alpaca API connection
 api = tradeapi.REST(api_key, api_secret, ALPACA_BASE_URL, api_version="v2")
 
-def place_trade(ticker, signal, buy_price, sell_price, stop_loss):
+def place_trade(ticker, signal, buy_price, sell_price):
     """
     Places a trade order based on the AI-generated trading signal.
 
