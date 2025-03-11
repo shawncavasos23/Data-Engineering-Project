@@ -2,12 +2,12 @@ import alpaca_trade_api as tradeapi # type: ignore
 import os
 
 # Load Alpaca API credentials
-ALPACA_API_KEY = "your_alpaca_api_key"
-ALPACA_SECRET_KEY = "your_alpaca_secret_key"
+api_key = "PKAC0YX4NUEZD73KJUSM"
+api_secret = "Tm6QZkLgrwvsaV1vpov39We2Fb7T12yPJlr5yJJn"
 ALPACA_BASE_URL = "https://paper-api.alpaca.markets"  # Use this for paper trading
 
 # Initialize Alpaca API connection
-api = tradeapi.REST(ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_BASE_URL, api_version="v2")
+api = tradeapi.REST(api_key, api_secret, ALPACA_BASE_URL, api_version="v2")
 
 def place_trade(ticker, signal, buy_price, sell_price, stop_loss):
     """
