@@ -1,8 +1,8 @@
-import praw
+import praw # type: ignore
 import datetime
 import sqlite3
-import pandas as pd
-from pytrends.request import TrendReq
+import pandas as pd # type: ignore
+from pytrends.request import TrendReq # type: ignore
 from database import create_connection
 
 # 🔹 Reddit API credentials (replace with real credentials)

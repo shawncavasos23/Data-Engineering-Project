@@ -1,4 +1,4 @@
-import requests
+import requests # type: ignore
 import sqlite3
 
 NEWS_API_KEY =  "da4034cbcb214777a510dd89b5b9bb69"

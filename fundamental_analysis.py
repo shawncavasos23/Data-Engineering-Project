@@ -1,10 +1,10 @@
-import requests
+import requests # type: ignore
 import sqlite3
-import pandas as pd
-import numpy as np
-from sklearn.preprocessing import StandardScaler
-from sklearn.cluster import KMeans
-from kneed import KneeLocator  # Automatically detects the elbow point
+import pandas as pd # type: ignore
+import numpy as np # type: ignore
+from sklearn.preprocessing import StandardScaler # type: ignore
+from sklearn.cluster import KMeans # type: ignore
+from kneed import KneeLocator  # type: ignore # Automatically detects the elbow point
 from database import create_connection
 
 API_KEY = "rfxtGuPO4lt5yNQOIuS4r7P27L508Mvt"
@@ -99,20 +99,44 @@ def cluster_companies():
         print("No data available for clustering.")
         return df
 
+    # **Step 1: Check for NaNs in the raw data**
+    print("\n[DEBUG] Missing values in raw fundamentals dataset:")
+    print(df.isna().sum())
+
+    # Select numerical features
     features = df[['pe_ratio', 'market_cap', 'revenue', 'beta', 'roa', 'roe']].copy()
+
+    # **Step 2: Check for NaNs BEFORE filling missing values**
+    print("\n[DEBUG] NaN count before fillna():")
+    print(features.isna().sum())
+
+    # Handle missing values
     features.fillna(features.mean(), inplace=True)
 
+    # **Step 3: Check for NaNs AFTER filling missing values**
+    print("\n[DEBUG] NaN count after fillna():")
+    print(features.isna().sum())
+
+    # Normalize features
     scaler = StandardScaler()
     scaled_features = scaler.fit_transform(features)
 
+    # **Step 4: Check for NaNs in Scaled Features**
+    if np.isnan(scaled_features).sum() > 0:
+        print("\n[ERROR] NaN detected in scaled features after normalization.")
+        return
+
+    # Determine optimal clusters
     k_range = range(1, 11)
     inertia = [KMeans(n_clusters=k, random_state=42, n_init=10).fit(scaled_features).inertia_ for k in k_range]
     kneedle = KneeLocator(k_range, inertia, curve="convex", direction="decreasing")
     optimal_k = kneedle.elbow or 3  # Default to 3 clusters if no elbow is found
 
+    # Perform K-Means Clustering
     kmeans = KMeans(n_clusters=optimal_k, random_state=42, n_init=10)
     df["cluster"] = kmeans.fit_predict(scaled_features)
 
+    # Update database
     conn = create_connection()
     cursor = conn.cursor()
     for _, row in df.iterrows():
@@ -120,7 +144,10 @@ def cluster_companies():
 
     conn.commit()
     conn.close()
+    
+    print("\n[INFO] Clustering complete. Clusters assigned to database.")
     return df
+
 
 def get_cluster_peers(ticker):
     """Finds companies in the same cluster as the given ticker."""

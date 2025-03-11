@@ -1,12 +1,15 @@
-import openai # type: ignore
+import openai  # type: ignore
 import sqlite3
-import pandas as pd # type: ignore
-from technical_analysis import run as run_technical
-from fundamental_analysis import run as run_fundamental
+import pandas as pd  # type: ignore
+from technical_analysis import run_technical_analysis
+from fundamental_analysis import run_fundamental_analysis
 from macroeconomic_analysis import fetch_economic_data
-from news_analysis import store_latest_news
+from news_analysis import fetch_news
 from reddit_analysis import run_reddit_analysis
 from database import create_connection
+
+# Securely load OpenAI API Key
+api_key = "your_openai_api_key"
 
 def update_database():
     """
@@ -29,21 +32,21 @@ def update_database():
     # 🔹 **Step 2: Update Technical & Fundamental Data for Each Ticker**
     for ticker in tracked_tickers:
         print(f"Running Technical Analysis for {ticker}...")
-        run_technical(ticker)
+        run_technical_analysis(ticker)
 
         print(f"Running Fundamental Analysis for {ticker}...")
-        run_fundamental(ticker)
+        run_fundamental_analysis(ticker)
 
         print(f"Running Reddit Sentiment & Google Trends Analysis for {ticker}...")
         run_reddit_analysis(ticker)
 
     # 🔹 **Step 3: Update Macroeconomic Data**
     print("Fetching latest macroeconomic data...")
-    fetch_economic_data()
+    macro_data = fetch_economic_data()
 
     # 🔹 **Step 4: Update Latest News Data**
     print("Fetching latest news headlines...")
-    store_latest_news()
+    news_data = fetch_news()
 
     # Commit changes and close the connection
     conn.commit()
@@ -58,10 +61,10 @@ def run_analysis(ticker):
     print(f"**Running AI-powered analysis for {ticker}...**")
 
     # 🔹 Fetch Latest Data from Each Analysis
-    technicals = run_technical(ticker)
-    fundamentals = run_fundamental(ticker)
+    technicals = run_technical_analysis(ticker)
+    fundamentals = run_fundamental_analysis(ticker)
     macro_trends = fetch_economic_data()
-    latest_news = store_latest_news()
+    latest_news = fetch_news()
     sentiment_analysis = run_reddit_analysis(ticker)
 
     # 🔹 Generate AI Final Trading Signal
@@ -71,8 +74,8 @@ def run_analysis(ticker):
         fundamentals,
         technicals,
         sentiment_analysis,
-        latest_news["economic_data"],  # Latest macroeconomic indicators
-        latest_news["news_titles"],  # Top recent news headlines
+        latest_news.get("economic_data", {}),  # Latest macroeconomic indicators
+        latest_news.get("news_titles", []),  # Top recent news headlines
         fundamentals.get("peer_companies", [])  # Peer comparison data
     )
 
@@ -80,9 +83,6 @@ def run_analysis(ticker):
     print(ai_final_trading_signal)
 
     return "\n**AI Analysis Complete!**"
-
-# OpenAI API Key (Replace with your actual API key)
-api_key = "your_openai_api_key"
 
 def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_data, sentiment_data, latest_economic_data, news_titles, peer_companies):
     """
@@ -110,11 +110,11 @@ def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_d
     You are a **quantitative financial analyst** with expertise in **macroeconomics, fundamental research, technical analysis, and behavioral finance**.
     Your role is to generate a **professional, data-driven trading signal** based on multi-factor analysis.
 
-    ---
+    --- 
     
     ## **Stock: {ticker}**
     
-    ---
+    --- 
     
     ## **Macroeconomic Analysis**
     - **Economic Overview**: How do current macroeconomic conditions affect {ticker}?
@@ -131,7 +131,7 @@ def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_d
     **AI Macro Insights:**
     {macro_data}
 
-    ---
+    --- 
     
     ## **Fundamental Analysis**
     - **Valuation Metrics**: P/E ratio, P/B ratio, P/S ratio, EV/EBITDA
@@ -146,7 +146,7 @@ def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_d
     **Peer Company Comparison:**
     {peer_table}
 
-    ---
+    --- 
     
     ## **Technical Analysis**
     - **Trend Strength**: Is {ticker} in an uptrend, downtrend, or range-bound?
@@ -158,7 +158,7 @@ def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_d
     **Technical Indicators:**
     {technical_data}
 
-    ---
+    --- 
     
     ## **Sentiment & Market Psychology**
     - **Retail Investor Sentiment**: How is {ticker} being discussed on social media?
@@ -169,7 +169,7 @@ def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_d
     **Reddit & Market Sentiment:**
     {sentiment_data}
 
-    ---
+    --- 
     
     ## **Final AI-Generated Trading Strategy**
     **Final Trading Signal:**  

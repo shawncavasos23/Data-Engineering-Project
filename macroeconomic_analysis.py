@@ -1,4 +1,4 @@
-import pandas_datareader.data as web
+import pandas_datareader.data as web # type: ignore
 import sqlite3
 import datetime
 

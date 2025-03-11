@@ -62,6 +62,10 @@ def initialize_database():
     );
     """)
 
+     # **Preload Some Tickers**
+    tickers = ["AAPL"]
+    cursor.executemany("INSERT OR IGNORE INTO fundamentals (ticker) VALUES (?);", [(t,) for t in tickers])
+
     conn.commit()
     conn.close()
 
