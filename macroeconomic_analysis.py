@@ -3,7 +3,7 @@ import sqlite3
 import datetime
 
 # Define Date Range
-start = datetime.datetime(2000, 1, 1)
+start = datetime.datetime(2020, 1, 1)
 end = datetime.datetime.today()
 
 # Define Economic Indicators
