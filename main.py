@@ -7,13 +7,13 @@ def main():
     parser = argparse.ArgumentParser(description="Trading Dashboard Controller")
     parser.add_argument(
         "command",
-        choices=["init", "update", "analyze", "produce", "consume"],
+        choices=["init", "update", "analyze", "produce", "consume", "show"],
         help="Command to execute"
     )
     parser.add_argument(
         "--ticker",
         type=str,
-        help="Stock ticker for analysis or streaming (e.g., AAPL)"
+        help="Stock ticker for analysis, streaming, or dashboard (e.g., AAPL)"
     )
 
     args = parser.parse_args()
@@ -56,6 +56,14 @@ def main():
         
         print(f"Starting Kafka Consumer to plot real-time stock prices: {args.ticker}...")
         subprocess.run(["python", "consumer.py", args.ticker])
+
+    elif args.command == "show":
+        if not args.ticker:
+            print("⚠ Please specify a stock ticker using --ticker <TICKER>")
+            return
+
+        print(f"Launching stock dashboard for {args.ticker}...")
+        subprocess.run(["streamlit", "run", "stock_dashboard.py", args.ticker])
 
 if __name__ == "__main__":
     main()

@@ -23,16 +23,17 @@ def create_news_database():
     conn.commit()
     conn.close()
 
-def fetch_news():
-    """Fetch latest financial news headlines from NewsAPI and store in SQLite."""
-    url = f"https://newsapi.org/v2/top-headlines?category=business&language=en&apiKey={NEWS_API_KEY}"
+def fetch_news(ticker):
+    """Fetch news articles related to a specific stock ticker from NewsAPI."""
+    
+    url = f"https://newsapi.org/v2/everything?q={ticker}&language=en&sortBy=publishedAt&apiKey={NEWS_API_KEY}"
 
     try:
         response = requests.get(url)
         data = response.json()
 
         if data.get("status") == "ok":
-            articles = data.get("articles", [])[:10]
+            articles = data.get("articles", [])[:10]  # Limit to the latest 10 articles
 
             conn = sqlite3.connect("trading_data.db")
             cursor = conn.cursor()
@@ -51,7 +52,8 @@ def fetch_news():
 
             conn.commit()
             conn.close()
-            print("Latest news stored in database.")
+            print(f"Stored {len(articles)} articles for {ticker} in the database.")
 
     except Exception as e:
-        print(f"Error fetching news: {e}")
+        print(f"Error fetching news for {ticker}: {e}")
+
