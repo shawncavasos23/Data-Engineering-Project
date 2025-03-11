@@ -1,6 +1,6 @@
-import openai # type: ignore
+import openai  # type: ignore
 import sqlite3
-import pandas as pd # type: ignore
+import pandas as pd  # type: ignore
 from technical_analysis import run_technical_analysis
 from fundamental_analysis import run_fundamental_analysis
 from macroeconomic_analysis import fetch_economic_data
@@ -8,10 +8,10 @@ from news_analysis import fetch_news
 from reddit_analysis import run_reddit_analysis
 from database import create_connection
 from email_utils import send_email  # Import email function
+from trade_execution import execute_trade  # Import Alpaca trade function
 
 # Securely load OpenAI API Key
-
-api_key = "your_api_key" 
+api_key = "your_api_key"
 
 def update_stock_data(ticker):
     """
@@ -43,10 +43,10 @@ def update_stock_data(ticker):
 
     # 🔹 **Step 2: Update Macroeconomic & News Data**
     print("Fetching latest macroeconomic data...")
-    macro_data = fetch_economic_data()
+    fetch_economic_data()
 
     print("Fetching latest news headlines...")
-    news_data = fetch_news()
+    fetch_news()
 
     conn.commit()
     conn.close()
@@ -107,10 +107,10 @@ def extract_existing_data(ticker):
         "peer_companies": peer_companies["ticker"].tolist()
     }
 
-def run_analysis_and_send_email(ticker):
+def run_analysis_and_execute_trade(ticker):
     """
-    Extracts existing financial data from the database and generates an AI-powered trading signal.
-    Sends the results via email.
+    Extracts existing financial data from the database, generates an AI-powered trading signal,
+    sends the results via email, and executes trades if applicable.
     """
     
     print(f"Extracting existing data for {ticker}...")
@@ -136,6 +136,14 @@ def run_analysis_and_send_email(ticker):
         subject=f"AI Trading Analysis for {ticker}",
         body=ai_final_trading_signal
     )
+
+    # **🔹 Execute Trade Based on AI Signal**
+    if "BUY" in ai_final_trading_signal:
+        execute_trade(ticker, "buy", 10)  # Example: Buy 10 shares
+    elif "SELL" in ai_final_trading_signal:
+        execute_trade(ticker, "sell", 10)  # Example: Sell 10 shares
+
+    return f"✅ AI analysis complete. Trade executed if applicable."
 
 def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_data, sentiment_data, latest_economic_data, news_titles, peer_companies):
     """
