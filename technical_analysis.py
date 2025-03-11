@@ -95,7 +95,6 @@ def store_technical_indicators(df):
 
 def run_technical_analysis(ticker):
     """Fetch stock data, calculate indicators, and store in the database."""
-    print(f"Running Technical Analysis for {ticker}...")
 
     stock_data = get_stock_data(ticker)
 

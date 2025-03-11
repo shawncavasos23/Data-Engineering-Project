@@ -5,13 +5,27 @@ def create_connection():
     return sqlite3.connect("trading_data.db")
 
 def initialize_database():
-    """Create tables for fundamentals, technical indicators, macroeconomic data, and news headlines."""
+    """Creates tables and ensures existing schema matches new schema."""
     conn = create_connection()
     cursor = conn.cursor()
 
-    # Create or update database tables
+    # Check if fundamentals table already exists
+    cursor.execute("PRAGMA table_info(fundamentals);")
+    existing_columns = {row[1] for row in cursor.fetchall()}  # Get existing column names
+
+    required_columns = {"id", "ticker", "sector", "pe_ratio", "market_cap", "revenue", "beta", "roa", "roe", "cluster"}
+
+    if not required_columns.issubset(existing_columns):
+        print("⚠ Table schema mismatch detected. Rebuilding database...")
+        cursor.executescript("""
+        DROP TABLE IF EXISTS fundamentals;
+        DROP TABLE IF EXISTS technicals;
+        DROP TABLE IF EXISTS macroeconomic_data;
+        DROP TABLE IF EXISTS news;
+        """)
+
+    # Create updated tables
     cursor.executescript("""
-    -- Fundamentals Table: Stores financial ratios, sector data, and clustering info
     CREATE TABLE IF NOT EXISTS fundamentals (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         ticker TEXT NOT NULL UNIQUE,
@@ -25,7 +39,6 @@ def initialize_database():
         cluster INTEGER DEFAULT NULL
     );
 
-    -- Technical Indicators Table: Stores stock trading indicators
     CREATE TABLE IF NOT EXISTS technicals (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         ticker TEXT NOT NULL,
@@ -41,7 +54,6 @@ def initialize_database():
         UNIQUE(ticker, date)
     );
 
-    -- Macroeconomic Data Table: Stores key economic indicators over time
     CREATE TABLE IF NOT EXISTS macroeconomic_data (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         indicator TEXT NOT NULL,
@@ -50,7 +62,6 @@ def initialize_database():
         UNIQUE(indicator, date)
     );
 
-    -- News Table: Stores the latest financial news headlines
     CREATE TABLE IF NOT EXISTS news (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         source TEXT,
@@ -62,12 +73,12 @@ def initialize_database():
     );
     """)
 
-     # **Preload Some Tickers**
+    # Preload some tickers if not already present
     tickers = ["AAPL"]
     cursor.executemany("INSERT OR IGNORE INTO fundamentals (ticker) VALUES (?);", [(t,) for t in tickers])
 
     conn.commit()
     conn.close()
 
-# Initialize the database when the script is first run
+# Initialize database
 initialize_database()

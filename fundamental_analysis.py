@@ -1,4 +1,5 @@
 import requests # type: ignore
+import time
 import sqlite3
 import pandas as pd # type: ignore
 import numpy as np # type: ignore
@@ -7,7 +8,6 @@ from sklearn.cluster import KMeans # type: ignore
 from kneed import KneeLocator  # type: ignore # Automatically detects the elbow point
 from database import create_connection
 
-API_KEY = "rfxtGuPO4lt5yNQOIuS4r7P27L508Mvt"
 
 def get_sp500_symbols_and_sectors():
     """Fetch S&P 500 tickers and their sector information from Wikipedia."""
@@ -31,46 +31,58 @@ def get_sector_peers(ticker, sp500_df):
 
     return same_sector_tickers
 
+API_KEY = "rfxtGuPO4lt5yNQOIuS4r7P27L508Mvt"
+
 def get_fundamental_data(ticker):
-    """Fetches fundamental financial data and sector info for a given stock."""
+    """Fetch fundamental financial data and sector info for a given stock, with retries on failure."""
     base_url = "https://financialmodelingprep.com/api/v3/"
-    
-    try:
-        # Fetch Company Profile (Contains Sector Information)
-        response_profile = requests.get(f"{base_url}profile/{ticker}?apikey={API_KEY}")
-        response_profile.raise_for_status()
-        profile_data = response_profile.json()
+    attempts = 0
+    wait_time = 2  # Start with 2-second wait, increase on failure
 
-        if not profile_data:
-            return None  # No data found
-        
-        sector = profile_data[0].get("sector", "Unknown")  # Extract sector information
+    while attempts < 3:
+        try:
+            # Fetch Company Profile (Contains Sector Information)
+            response_profile = requests.get(f"{base_url}profile/{ticker}?apikey={API_KEY}")
+            response_profile.raise_for_status()
+            profile_data = response_profile.json()
 
-        # Fetch Key Metrics (Financial Information)
-        response_metrics = requests.get(f"{base_url}key-metrics/{ticker}?apikey={API_KEY}")
-        response_metrics.raise_for_status()
-        key_metrics = response_metrics.json()
+            if not profile_data:
+                raise ValueError("No profile data returned from API.")
 
-        if not key_metrics:
-            return None  # No data found
+            company_data = profile_data[0]  # Extract first item
+            sector = company_data.get("sector", "Unknown")  # Extract sector
 
-        data = key_metrics[0]  # Extract latest available data
+            # Fetch Key Metrics (Financial Ratios & Revenue Data)
+            response_metrics = requests.get(f"{base_url}key-metrics/{ticker}?apikey={API_KEY}")
+            response_metrics.raise_for_status()
+            key_metrics = response_metrics.json()[0] if response_metrics.json() else {}
 
-        fundamentals = {
-            "ticker": ticker,
-            "sector": sector,  # Add sector information
-            "pe_ratio": data.get("peRatio"),
-            "market_cap": data.get("marketCap"),
-            "revenue": data.get("revenue"),
-            "beta": data.get("beta"),
-            "roa": data.get("returnOnAssets"),
-            "roe": data.get("returnOnEquity"),
-        }
-        return fundamentals
+            # Fetch Ratios (Backup for Missing Fundamental Data)
+            response_ratios = requests.get(f"{base_url}ratios/{ticker}?apikey={API_KEY}")
+            response_ratios.raise_for_status()
+            ratios_data = response_ratios.json()[0] if response_ratios.json() else {}
 
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching fundamental data for {ticker}: {e}")
-        return None
+            # Construct fundamental data with multiple sources
+            fundamentals = {
+                "ticker": ticker,
+                "sector": sector,
+                "pe_ratio": key_metrics.get("peRatio") or ratios_data.get("priceEarningsRatio"),
+                "market_cap": company_data.get("mktCap"),
+                "revenue": company_data.get("revenue") or key_metrics.get("revenuePerShare"),
+                "beta": company_data.get("beta"),
+                "roa": company_data.get("returnOnAssets") or ratios_data.get("returnOnAssets"),
+                "roe": company_data.get("returnOnEquity") or ratios_data.get("returnOnEquity")
+            }
+            return fundamentals  # Success: Return fundamental data
+
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching fundamental data for {ticker}: {e}")
+            attempts += 1
+            time.sleep(wait_time)  # Exponential backoff
+            wait_time *= 2  # Double wait time on each retry
+
+    print(f"Skipping {ticker} after 3 failed attempts.")
+    return None  # Return None after max attempts
 
 def store_fundamentals(data):
     """Stores fetched fundamental data into the database."""
@@ -81,13 +93,18 @@ def store_fundamentals(data):
     cursor = conn.cursor()
 
     cursor.execute("""
-        INSERT OR REPLACE INTO fundamentals (ticker, sector, pe_ratio, market_cap, revenue, beta, roa, roe)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (data["ticker"], data["sector"], data["pe_ratio"], data["market_cap"], data["revenue"],
-          data["beta"], data["roa"], data["roe"]))
+        INSERT OR REPLACE INTO fundamentals (
+            ticker, sector, pe_ratio, 
+            market_cap, revenue, beta, roa, roe
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        data["ticker"], data["sector"], data["pe_ratio"],
+        data["market_cap"], data["revenue"], data["beta"], data["roa"], data["roe"]
+    ))
 
     conn.commit()
     conn.close()
+
 
 def cluster_companies():
     """Uses K-Means clustering to group companies based on financial metrics."""
@@ -166,8 +183,7 @@ def get_cluster_peers(ticker):
 
 def run_fundamental_analysis(ticker):
     """Fetches fundamental data, finds same-sector companies, and clusters."""
-    
-    print(f"Fetching fundamental data for {ticker}...")
+
     sp500_df = get_sp500_symbols_and_sectors()  # Load S&P 500 data
     same_sector_tickers = get_sector_peers(ticker, sp500_df)  # Get same-sector firms
 

@@ -15,8 +15,7 @@ def update_database():
     """
     Fetches the latest stock, macroeconomic indicators, news, and sentiment data, and updates the database.
     """
-    print("Fetching latest stock, macroeconomic data, news, and Reddit sentiment...")
-
+    
     # Connect to SQLite database
     conn = create_connection()
     cursor = conn.cursor()
