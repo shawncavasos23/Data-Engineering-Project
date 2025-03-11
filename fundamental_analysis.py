@@ -122,16 +122,6 @@ def cluster_companies():
     # Select numerical features
     features = df[['pe_ratio', 'market_cap', 'revenue', 'beta', 'roa', 'roe']].copy()
 
-    # **Step 2: Check for NaNs BEFORE filling missing values**
-    print("\n[DEBUG] NaN count before fillna():")
-    print(features.isna().sum())
-
-    # Handle missing values
-    features.fillna(features.mean(), inplace=True)
-
-    # **Step 3: Check for NaNs AFTER filling missing values**
-    print("\n[DEBUG] NaN count after fillna():")
-    print(features.isna().sum())
 
     # Normalize features
     scaler = StandardScaler()
