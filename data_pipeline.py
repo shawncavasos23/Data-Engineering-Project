@@ -10,7 +10,7 @@ from database import create_connection
 from email_utils import send_email  # Import email function
 
 # Securely load OpenAI API Key
-api_key = "your_openai_api_key"
+# api_key = "your_api_key" 
 
 def update_stock_data(ticker):
     """

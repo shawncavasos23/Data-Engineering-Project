@@ -5,7 +5,7 @@ from email.mime.multipart import MIMEMultipart
 
 # Email credentials
 EMAIL_SENDER = "5214project@gmail.com"
-EMAIL_PASSWORD = "NUSPROJECT2025!"  # App password (replace if needed)
+EMAIL_PASSWORD = "itee roju ludy ipsk"  # App password (replace if needed)
 EMAIL_RECEIVER = "5214project@gmail.com"
 
 def send_email(subject, body):
