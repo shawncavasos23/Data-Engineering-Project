@@ -60,6 +60,6 @@ def store_reddit_mentions(ticker):
         conn.close()
 
 def run_reddit_analysis(ticker):
-    """Fetch and store Reddit mentions & Google Trends data for a ticker."""
+    """Fetch and store Reddit mentions."""
     store_reddit_mentions(ticker)
     return {"ticker": ticker, "reddit_mentions": len(get_recent_ticker_mentions(ticker))}
