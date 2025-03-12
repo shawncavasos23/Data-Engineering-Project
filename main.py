@@ -1,10 +1,15 @@
 import argparse
 import subprocess
+import sys
+import os
+import signal
 import time
-import psutil  # type: ignore
+import psutil # type: ignore
+import atexit
 from database import initialize_database
 from data_pipeline import update_stock_data, run_analysis_and_execute_trade
 
+# Default Stock Ticker
 DEFAULT_TICKER = "AAPL"
 
 def find_process(name):
@@ -21,13 +26,11 @@ def kill_process(process):
     """Kill a process safely."""
     if process:
         try:
-            print(f"Terminating process: {process.info['pid']} ({process.info['name']})")
             process.terminate()
             process.wait(timeout=5)
         except psutil.NoSuchProcess:
-            print("Process not found.")
+            pass
         except psutil.TimeoutExpired:
-            print(f"Process {process.info['pid']} did not terminate in time, forcing kill.")
             process.kill()
 
 def stop_all_processes():
@@ -140,5 +143,7 @@ def main():
         except FileNotFoundError:
             print("Error: Streamlit is not installed or stock_dashboard.py is missing.")
 
+
 if __name__ == "__main__":
     main()
+

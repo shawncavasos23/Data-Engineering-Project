@@ -3,6 +3,7 @@ import sqlite3
 import datetime
 import pandas as pd  # type: ignore
 import time
+from database import create_connection
 
 # Define Date Range
 start = datetime.datetime(2020, 1, 1)
@@ -24,84 +25,59 @@ indicators = {
     'M2SL': 'M2 Money Supply'
 }
 
-def create_connection():
-    """Create or connect to the SQLite database."""
-    conn = sqlite3.connect('trading_data.db')
-    conn.execute("PRAGMA foreign_keys = ON;")
-    return conn
-
-def initialize_database():
-    """Ensure the macroeconomic_data table exists in row format."""
-    conn = create_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS macroeconomic_data (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            indicator TEXT NOT NULL,
-            date DATE NOT NULL,
-            value REAL,
-            UNIQUE(indicator, date)
-        );
-    """)
-
-    conn.commit()
-    conn.close()
-
 def fetch_economic_data():
     """Fetch macroeconomic data from FRED and store it in SQLite correctly."""
     conn = create_connection()
     cursor = conn.cursor()
 
-    # Ensure we get the correct column data
+    # Get the last stored date
     cursor.execute("SELECT MAX(date) FROM macroeconomic_data;")
     last_date = cursor.fetchone()[0]
 
-    # **Fix: Check if last_date is an invalid number**
-    if last_date and not isinstance(last_date, str):  # If not a string, it's wrong
-        print(f"⚠ Warning: last_date is invalid ({last_date}), resetting to None.")
-        last_date = None  # Reset to None to fetch all data correctly
-
+    # Ensure last_date is valid and formatted correctly
     if last_date:
-        last_date = str(last_date)  # Ensure last_date is a string
-        last_date = datetime.datetime.strptime(last_date, "%Y-%m-%d")  # Convert to datetime
-        start_date = last_date + datetime.timedelta(days=1)  # Start from next day
+        try:
+            last_date = datetime.datetime.strptime(str(last_date), "%Y-%m-%d")
+            start_date = last_date + datetime.timedelta(days=1)  # Start from next day
+        except ValueError:
+            print(f"Warning: Invalid date format found in DB ({last_date}), resetting to default start date.")
+            start_date = start
     else:
-        start_date = start  # Fetch all data if empty
+        start_date = start
 
-    # Prevent fetching data beyond today's date
+    # Prevent fetching data beyond today
     start_date = min(start_date, end)
 
     for code, name in indicators.items():
-        try:
-            df = web.DataReader(code, 'fred', start_date, end)
+        retry_attempts = 3
+        while retry_attempts > 0:
+            try:
+                df = web.DataReader(code, 'fred', start_date, end)
 
-            if df.empty:
-                continue
+                if df.empty:
+                    print(f"Warning: No data available for {name} ({code}) in the given range.")
+                    break  # No need to retry if data is empty
 
-            df.reset_index(inplace=True)
-            df.columns = ["date", "value"]
-            df["indicator"] = code  # Store indicator name
-            
-            # **Ensure the `date` column is correctly formatted as a string**
-            df["date"] = df["date"].astype(str)
+                df.reset_index(inplace=True)
+                df.columns = ["date", "value"]
+                df["indicator"] = code  # Store indicator name
+                
+                # Ensure the `date` column is correctly formatted as a string
+                df["date"] = df["date"].astype(str)
 
-            # **Ensure correct column order before inserting**
-            cursor.executemany(
-                "INSERT OR IGNORE INTO macroeconomic_data (indicator, date, value) VALUES (?, ?, ?);",
-                df[["indicator", "date", "value"]].values.tolist()
-            )
+                # Insert into database
+                cursor.executemany(
+                    "INSERT OR IGNORE INTO macroeconomic_data (indicator, date, value) VALUES (?, ?, ?);",
+                    df[["indicator", "date", "value"]].values.tolist()
+                )
 
-            print(f"Saved {name} ({code}) to database.")
-            time.sleep(1)  # Prevent API rate limits
+                time.sleep(1)  # Prevent API rate limits
+                break  # Success, move to next indicator
 
-        except Exception as e:
-            print(f"Could not retrieve {name} ({code}): {e}")
+            except Exception as e:
+                retry_attempts -= 1
+                print(f"Error retrieving {name} ({code}): {e} - Retries left: {retry_attempts}")
+                time.sleep(2 ** (3 - retry_attempts))  # Exponential backoff (2, 4, 8 seconds)
 
     conn.commit()
     conn.close()
-
-
-# Ensure table exists before fetching data
-initialize_database()
-fetch_economic_data()

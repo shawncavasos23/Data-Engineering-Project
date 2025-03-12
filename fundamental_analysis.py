@@ -12,84 +12,59 @@ import os
 
 API_KEY = "ryvHpF6OKhRpZ4c7YJ4zBv8JD4PwcDbl"
 
-def get_sp500_symbols_and_sectors():
-    """Fetch S&P 500 tickers and their sector information from Wikipedia."""
-    url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
-
-    try:
-        tables = pd.read_html(url)
-        if len(tables) == 0 or "Symbol" not in tables[0].columns:
-            print("⚠ Wikipedia table structure changed. Scraper needs an update.")
-            return None
-
-        sp500_df = tables[0]  # First table contains stock symbols and sectors
-        return sp500_df[['Symbol', 'GICS Sector']].rename(columns={'Symbol': 'ticker', 'GICS Sector': 'sector'})
-
-    except Exception as e:
-        print(f"⚠ Error fetching S&P 500 data from Wikipedia: {e}")
-        return None
-
-def get_sector_peers(ticker, sp500_df):
-    """Find all companies in the same sector as the given ticker."""
-    sector = sp500_df.loc[sp500_df['ticker'] == ticker, 'sector'].values
-    if len(sector) == 0:
-        print(f"⚠ {ticker} not found in S&P 500 list.")
-        return []
-
-    sector = sector[0]  # Get sector name
-    same_sector_tickers = sp500_df[sp500_df['sector'] == sector]['ticker'].tolist()
-
-    return same_sector_tickers
-
 def get_fundamental_data(ticker):
-    """Fetch fundamental financial data and sector info for a given stock, with retries on failure."""
+    """Fetch fundamental financial data for a stock and store it in SQLite."""
+    
+    conn = create_connection()
+    cursor = conn.cursor()
+
+    # Check if fundamentals are missing
+    cursor.execute("""
+        SELECT COUNT(*) FROM fundamentals 
+        WHERE ticker = ? AND (pe_ratio IS NOT NULL OR revenue IS NOT NULL OR market_cap IS NOT NULL)
+    """, (ticker,))
+    data_exists = cursor.fetchone()[0]
+
+    if data_exists:
+        print(f"Fundamentals already exist for {ticker}. Skipping API call.")
+        conn.close()
+        return  # Prevents API call if data is already there
+
+    conn.close()
+
+    # Fetch data from API (unchanged)
     base_url = "https://financialmodelingprep.com/api/v3/"
-    attempts = 0
-    wait_time = 2  # Start with 2-second wait, increase on failure
+    try:
+        response_profile = requests.get(f"{base_url}profile/{ticker}?apikey={API_KEY}")
+        response_metrics = requests.get(f"{base_url}key-metrics/{ticker}?apikey={API_KEY}")
+        response_ratios = requests.get(f"{base_url}ratios/{ticker}?apikey={API_KEY}")
 
-    while attempts < 3:
-        try:
-            response_profile = requests.get(f"{base_url}profile/{ticker}?apikey={API_KEY}")
-            response_profile.raise_for_status()
-            profile_data = response_profile.json()
+        response_profile.raise_for_status()
+        response_metrics.raise_for_status()
+        response_ratios.raise_for_status()
 
-            if not profile_data:
-                raise ValueError("No profile data returned from API.")
+        profile_data = response_profile.json()[0] if response_profile.json() else {}
+        key_metrics = response_metrics.json()[0] if response_metrics.json() else {}
+        ratios_data = response_ratios.json()[0] if response_ratios.json() else {}
 
-            company_data = profile_data[0]
-            sector = company_data.get("sector", "Unknown")
+        # 🔹 Store fetched data
+        store_fundamentals({
+            "ticker": ticker,
+            "sector": profile_data.get("sector", "Unknown"),
+            "pe_ratio": key_metrics.get("peRatio") or ratios_data.get("priceEarningsRatio"),
+            "market_cap": profile_data.get("mktCap"),
+            "revenue": profile_data.get("revenue") or key_metrics.get("revenue"),
+            "beta": profile_data.get("beta"),
+            "roa": key_metrics.get("returnOnAssets") or ratios_data.get("returnOnAssets"),
+            "roe": key_metrics.get("returnOnEquity") or ratios_data.get("returnOnEquity")
+        })
 
-            response_metrics = requests.get(f"{base_url}key-metrics/{ticker}?apikey={API_KEY}")
-            response_metrics.raise_for_status()
-            key_metrics = response_metrics.json()[0] if response_metrics.json() else {}
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching fundamental data for {ticker}: {e}")
 
-            response_ratios = requests.get(f"{base_url}ratios/{ticker}?apikey={API_KEY}")
-            response_ratios.raise_for_status()
-            ratios_data = response_ratios.json()[0] if response_ratios.json() else {}
-
-            fundamentals = {
-                "ticker": ticker,
-                "sector": sector,
-                "pe_ratio": key_metrics.get("peRatio") or ratios_data.get("priceEarningsRatio"),
-                "market_cap": company_data.get("mktCap"),
-                "revenue": company_data.get("revenue") or key_metrics.get("revenue"),
-                "beta": company_data.get("beta"),
-                "roa": company_data.get("returnOnAssets") or ratios_data.get("returnOnAssets"),
-                "roe": company_data.get("returnOnEquity") or ratios_data.get("returnOnEquity")
-            }
-            return fundamentals
-
-        except requests.exceptions.RequestException as e:
-            print(f"⚠ Error fetching fundamental data for {ticker}: {e}")
-            attempts += 1
-            time.sleep(wait_time)
-            wait_time *= 2
-
-    print(f"⏩ Skipping {ticker} after 3 failed attempts.")
-    return None
 
 def store_fundamentals(data):
-    """Stores fetched fundamental data into the database."""
+    """Stores fetched fundamental data into the database while preserving cluster assignments."""
     if data is None:
         return
 
@@ -97,67 +72,32 @@ def store_fundamentals(data):
         conn = create_connection()
         cursor = conn.cursor()
 
+        # Preserve existing cluster assignments
+        cursor.execute("SELECT cluster FROM fundamentals WHERE ticker = ?", (data["ticker"],))
+        existing_cluster = cursor.fetchone()
+        cluster_value = existing_cluster[0] if existing_cluster else None
+
         cursor.execute("""
-            INSERT OR REPLACE INTO fundamentals (
-                ticker, sector, pe_ratio, 
-                market_cap, revenue, beta, roa, roe
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO fundamentals (
+                ticker, sector, pe_ratio, market_cap, revenue, beta, roa, roe, cluster
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(ticker) DO UPDATE SET 
+                sector=excluded.sector,
+                pe_ratio=excluded.pe_ratio,
+                market_cap=excluded.market_cap,
+                revenue=excluded.revenue,
+                beta=excluded.beta,
+                roa=excluded.roa,
+                roe=excluded.roe
         """, (
             data["ticker"], data["sector"], data["pe_ratio"],
-            data["market_cap"], data["revenue"], data["beta"], data["roa"], data["roe"]
+            data["market_cap"], data["revenue"], data["beta"], data["roa"], data["roe"],
+            cluster_value  # Preserve existing cluster
         ))
 
         conn.commit()
+       
     except sqlite3.Error as e:
-        print(f"⚠ SQLite Database Error: {e}")
+        print(f"SQLite Database Error: {e}")
     finally:
         conn.close()
-
-def cluster_companies():
-    """Uses K-Means clustering to group companies based on financial metrics."""
-    conn = create_connection()
-    df = pd.read_sql("SELECT * FROM fundamentals", conn)
-    conn.close()
-
-    if df.empty:
-        print("⚠ No data available for clustering.")
-        return df
-
-    print("\n[DEBUG] Missing values in raw fundamentals dataset:")
-    print(df.isna().sum())
-
-    features = df[['pe_ratio', 'market_cap', 'revenue', 'beta', 'roa', 'roe']].copy()
-
-    # 🔹 Handle missing values properly
-    imputer = SimpleImputer(strategy="mean")
-    features = pd.DataFrame(imputer.fit_transform(features), columns=features.columns)
-
-    scaler = StandardScaler()
-    scaled_features = scaler.fit_transform(features)
-
-    try:
-        k_range = range(1, 11)
-        inertia = [KMeans(n_clusters=k, random_state=42, n_init=10).fit(scaled_features).inertia_ for k in k_range]
-        kneedle = KneeLocator(k_range, inertia, curve="convex", direction="decreasing")
-        optimal_k = kneedle.elbow or 3
-
-        kmeans = KMeans(n_clusters=optimal_k, random_state=42, n_init=10)
-        df["cluster"] = kmeans.fit_predict(scaled_features)
-
-        conn = create_connection()
-        cursor = conn.cursor()
-        for _, row in df.iterrows():
-            cursor.execute("UPDATE fundamentals SET cluster = ? WHERE ticker = ?", (row["cluster"], row["ticker"]))
-
-        conn.commit()
-        conn.close()
-
-        print("\n✅ Clustering complete. Clusters assigned to database.")
-
-    except Exception as e:
-        print(f"⚠ Error during clustering: {e}")
-
-    return df
-
-data = get_fundamental_data("MSFT")
-store_fundamentals(data)

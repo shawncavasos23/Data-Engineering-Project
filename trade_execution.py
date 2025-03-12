@@ -15,8 +15,26 @@ def is_market_open():
         clock = api.get_clock()
         return clock.is_open
     except Exception as e:
-        print(f"Error checking market status: {e}")
-        return False  # Assume market is closed if API check fails
+        print(f"Error checking market status: {e}. Assuming market is closed.")
+        return False  # Default to closed if API call fails
+
+def get_position_size(ticker, max_dollars=5000):
+    """
+    Dynamically calculates position size based on max allocation.
+
+    :param ticker: Stock symbol
+    :param max_dollars: Max dollar amount to allocate per trade (default: $5000)
+    :return: Quantity of shares to buy
+    """
+    try:
+        # Fetch current market price
+        quote = api.get_last_trade(ticker)
+        price = quote.price
+        qty = int(max_dollars / price)  # Ensure whole number of shares
+        return max(qty, 1)  # Minimum 1 share
+    except Exception as e:
+        print(f"Error fetching market price for {ticker}: {e}. Defaulting to 1 share.")
+        return 1  # Default to 1 share if price fetch fails
 
 def place_trade(ticker, signal, buy_price, sell_price, stop_loss):
     """
@@ -41,14 +59,15 @@ def place_trade(ticker, signal, buy_price, sell_price, stop_loss):
 
         if signal == "BUY":
             if current_position:
-                print(f"⚠ Already holding {ticker}. No additional buy needed.")
+                print(f"Already holding {ticker}. No additional buy needed.")
                 return
             
-            print(f"Placing a **BUY** order for {ticker} at ${buy_price}...")
+            qty = get_position_size(ticker)  # Determine position size dynamically
+            print(f"Placing a **BUY** order for {ticker} at ${buy_price} (Qty: {qty})...")
 
             order = api.submit_order(
                 symbol=ticker,
-                qty=10,  # Modify quantity as needed
+                qty=qty,
                 side="buy",
                 type="limit",
                 limit_price=buy_price,
@@ -60,7 +79,7 @@ def place_trade(ticker, signal, buy_price, sell_price, stop_loss):
         elif signal == "SELL":
             if current_position:
                 sell_qty = int(float(current_position.qty))
-                print(f"Placing a **SELL** order for {ticker} at ${sell_price}...")
+                print(f"Placing a **SELL** order for {ticker} at ${sell_price} (Qty: {sell_qty})...")
 
                 order = api.submit_order(
                     symbol=ticker,
