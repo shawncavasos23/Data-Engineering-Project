@@ -5,9 +5,10 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 # Load email credentials securely
-EMAIL_SENDER = os.getenv("EMAIL_SENDER")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")  # Store in environment variables
-EMAIL_RECEIVER = os.getenv("EMAIL_RECEIVER")  # Single email or comma-separated list
+EMAIL_SENDER = "5214project@gmail.com"
+EMAIL_PASSWORD = "oekx qhns irap bgna"
+EMAIL_RECEIVER = "5214project@gmail.com"
+"
 
 def send_email(subject, body):
     """Sends an email notification when an AI trading alert is triggered."""
