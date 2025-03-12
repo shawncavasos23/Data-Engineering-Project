@@ -91,7 +91,6 @@ def get_fundamental_data(ticker):
 def store_fundamentals(data):
     """Stores fetched fundamental data into the database."""
     if data is None:
-        print("No fundamental data to store.")
         return
 
     try:
@@ -109,11 +108,8 @@ def store_fundamentals(data):
         ))
 
         conn.commit()
-        print(f"Successfully stored {data['ticker']} in database!")
-
     except sqlite3.Error as e:
         print(f"⚠ SQLite Database Error: {e}")
-
     finally:
         conn.close()
 
@@ -162,3 +158,6 @@ def cluster_companies():
         print(f"⚠ Error during clustering: {e}")
 
     return df
+
+data = get_fundamental_data("MSFT")
+store_fundamentals(data)

@@ -4,18 +4,53 @@ import sys
 import os
 import signal
 import time
+import psutil # type: ignore
+import atexit
 from database import initialize_database
 from data_pipeline import update_stock_data, run_analysis_and_execute_trade
 
 # Default Stock Ticker
 DEFAULT_TICKER = "AAPL"
 
-producer_process = None
-consumer_process = None
+def find_process(name):
+    """Find a running process by name and return its PID."""
+    for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+        try:
+            if proc.info["cmdline"] and name in " ".join(proc.info["cmdline"]):
+                return proc
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            continue
+    return None
+
+def kill_process(process):
+    """Kill a process safely."""
+    if process:
+        try:
+            process.terminate()
+            process.wait(timeout=5)
+        except psutil.NoSuchProcess:
+            pass
+        except psutil.TimeoutExpired:
+            process.kill()
+
+def stop_all_processes():
+    """Stop Kafka Producer and Consumer if they are running."""
+    producer_proc = find_process("producer.py")
+    consumer_proc = find_process("consumer.py")
+
+    if producer_proc:
+        print("Stopping Kafka Producer...")
+        kill_process(producer_proc)
+    else:
+        print("No active Producer to stop.")
+
+    if consumer_proc:
+        print("Stopping Kafka Consumer...")
+        kill_process(consumer_proc)
+    else:
+        print("No active Consumer to stop.")
 
 def main():
-    global producer_process, consumer_process
-
     parser = argparse.ArgumentParser(description="Trading Dashboard Controller")
 
     parser.add_argument(
@@ -48,97 +83,66 @@ def main():
 
     # Update Data
     elif args.command == "update":
-        if not args.ticker:
-            print("⚠ Please specify a stock ticker using --ticker <TICKER>")
-            return
-        
-        print(f"Fetching latest data for {args.ticker}...")
-        update_stock_data(args.ticker)
-        print(f"Data updated for {args.ticker}.")
+        ticker = args.ticker or DEFAULT_TICKER
+        print(f"Fetching latest data for {ticker}...")
+        update_stock_data(ticker)
+        print(f"Data updated for {ticker}.")
 
     # Run AI Analysis
     elif args.command == "analyze":
-        if not args.ticker:
-            print("⚠ Please specify a stock ticker using --ticker <TICKER>")
-            return
-        
-        print(f"Running AI-powered analysis for {args.ticker}...")
-        result = run_analysis_and_execute_trade(args.ticker)
+        ticker = args.ticker or DEFAULT_TICKER
+        print(f"Running AI-powered analysis for {ticker}...")
+        result = run_analysis_and_execute_trade(ticker)
         print(result)
 
     # Start Kafka Producer (Streaming Data)
     elif args.command == "produce":
-        if not args.ticker:
-            print("⚠ Please specify a stock ticker using --ticker <TICKER>")
-            return
-        
-        if producer_process is not None:
-            print("⚠ Producer is already running.")
+        ticker = args.ticker or DEFAULT_TICKER
+
+        if find_process("producer.py"):
+            print("Producer is already running.")
         else:
-            print(f"🚀 Starting Kafka Producer for {args.ticker}...")
-            producer_process = subprocess.Popen(["python", "producer.py", args.ticker])
-            time.sleep(2)
+            print(f"Starting Kafka Producer for {ticker}...")
+            subprocess.Popen(["python", "producer.py", ticker], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             print("Kafka Producer started successfully.")
 
     # Start Kafka Consumer (Real-Time Visualization)
     elif args.command == "consume":
-        if not args.ticker:
-            print("⚠ Please specify a stock ticker using --ticker <TICKER>")
-            return
-        
-        if consumer_process is not None:
-            print("⚠ Consumer is already running.")
+        ticker = args.ticker or DEFAULT_TICKER
+
+        if find_process("consumer.py"):
+            print("Consumer is already running.")
         else:
-            print(f"📊 Starting Kafka Consumer for {args.ticker}...")
-            consumer_process = subprocess.Popen(["python", "consumer.py", args.ticker])
+            print(f"Starting Kafka Consumer for {ticker}...")
+            subprocess.Popen(["python", "consumer.py", ticker], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             print("Kafka Consumer started successfully.")
 
     # Stop Kafka Producer & Consumer
     elif args.command == "stop":
-        if producer_process is not None:
-            os.kill(producer_process.pid, signal.SIGTERM)
-            producer_process = None
-            print("🛑 Producer stopped.")
-        else:
-            print("⚠ No active Producer to stop.")
-
-        if consumer_process is not None:
-            os.kill(consumer_process.pid, signal.SIGTERM)
-            consumer_process = None
-            print("🛑 Consumer stopped.")
-        else:
-            print("⚠ No active Consumer to stop.")
+        stop_all_processes()
 
     # Restart Kafka Producer & Consumer
     elif args.command == "restart":
-        if producer_process is not None:
-            os.kill(producer_process.pid, signal.SIGTERM)
-            producer_process = None
-            print("🛑 Producer stopped.")
-
-        if consumer_process is not None:
-            os.kill(consumer_process.pid, signal.SIGTERM)
-            consumer_process = None
-            print("🛑 Consumer stopped.")
-
+        print("Restarting Kafka Producer and Consumer...")
+        stop_all_processes()
         time.sleep(2)
 
-        print(f"🚀 Restarting Kafka Producer and Consumer for {args.ticker}...")
-        producer_process = subprocess.Popen(["python", "producer.py", args.ticker])
-        consumer_process = subprocess.Popen(["python", "consumer.py", args.ticker])
+        ticker = args.ticker or DEFAULT_TICKER
+        print(f"Restarting Kafka Producer and Consumer for {ticker}...")
+        subprocess.Popen(["python", "producer.py", ticker], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(["python", "consumer.py", ticker], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         print("Kafka Producer & Consumer restarted successfully.")
 
     # Launch Streamlit Dashboard
     elif args.command == "show":
-        if not args.ticker:
-            print("⚠ Please specify a stock ticker using --ticker <TICKER>")
-            return
+        ticker = args.ticker or DEFAULT_TICKER
+        print(f"Launching stock dashboard for {ticker}...")
 
-        print(f"Launching stock dashboard for {args.ticker}...")
         try:
-            subprocess.run(["streamlit", "run", "stock_dashboard.py", args.ticker])
+            subprocess.run(["streamlit", "run", "stock_dashboard.py", "--", ticker])
         except FileNotFoundError:
             print("Error: Streamlit is not installed or stock_dashboard.py is missing.")
+
 
 if __name__ == "__main__":
     main()

@@ -8,7 +8,6 @@ from email.mime.multipart import MIMEMultipart
 EMAIL_SENDER = "5214project@gmail.com"
 EMAIL_PASSWORD = "oekx qhns irap bgna"
 EMAIL_RECEIVER = "5214project@gmail.com"
-"
 
 def send_email(subject, body):
     """Sends an email notification when an AI trading alert is triggered."""
