@@ -8,7 +8,7 @@ import time
 start = datetime.datetime(2020, 1, 1)
 end = datetime.datetime.today()
 
-# Define Economic Indicators (Each will be a column in the table)
+# Define Economic Indicators (Stored as rows, not columns)
 indicators = {
     'CPIAUCSL': 'CPI (Consumer Price Index)',
     'PPIACO': 'PPI (Producer Price Index)',
@@ -27,21 +27,21 @@ indicators = {
 def create_connection():
     """Create or connect to the SQLite database."""
     conn = sqlite3.connect('trading_data.db')
-    conn.execute("PRAGMA foreign_keys = ON;")  # Ensure foreign keys are enabled
+    conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
 def initialize_database():
-    """Ensure the macroeconomic_data table exists with separate columns for each indicator."""
+    """Ensure the macroeconomic_data table exists in row format."""
     conn = create_connection()
     cursor = conn.cursor()
 
-    # Generate SQL column definitions dynamically for each indicator
-    columns = ", ".join([f"{code} REAL" for code in indicators.keys()])
-
-    cursor.execute(f"""
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS macroeconomic_data (
-            date DATE PRIMARY KEY,
-            {columns}
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            indicator TEXT NOT NULL,
+            date DATE NOT NULL,
+            value REAL,
+            UNIQUE(indicator, date)
         );
     """)
 
@@ -49,63 +49,59 @@ def initialize_database():
     conn.close()
 
 def fetch_economic_data():
-    """Fetch macroeconomic data from FRED and store it in SQLite."""
+    """Fetch macroeconomic data from FRED and store it in SQLite correctly."""
     conn = create_connection()
     cursor = conn.cursor()
 
-    # Check the last available date in the database
+    # Ensure we get the correct column data
     cursor.execute("SELECT MAX(date) FROM macroeconomic_data;")
     last_date = cursor.fetchone()[0]
-    
-    if last_date:
-        last_date = datetime.datetime.strptime(last_date, "%Y-%m-%d")  # Convert string to datetime
-        start_date = last_date + datetime.timedelta(days=1)  # Fetch data from the next day
-    else:
-        start_date = start  # Fetch all data if the database is empty
 
-    all_data = None  # Initialize to None
+    # **Fix: Check if last_date is an invalid number**
+    if last_date and not isinstance(last_date, str):  # If not a string, it's wrong
+        print(f"⚠ Warning: last_date is invalid ({last_date}), resetting to None.")
+        last_date = None  # Reset to None to fetch all data correctly
+
+    if last_date:
+        last_date = str(last_date)  # Ensure last_date is a string
+        last_date = datetime.datetime.strptime(last_date, "%Y-%m-%d")  # Convert to datetime
+        start_date = last_date + datetime.timedelta(days=1)  # Start from next day
+    else:
+        start_date = start  # Fetch all data if empty
+
+    # Prevent fetching data beyond today's date
+    start_date = min(start_date, end)
 
     for code, name in indicators.items():
         try:
             df = web.DataReader(code, 'fred', start_date, end)
 
-            if df is None or df.empty:
-                print(f"No new data available for {name} ({code}). Skipping...")
-                continue  # Skip if there's no new data
+            if df.empty:
+                continue
 
-            df.rename(columns={df.columns[0]: code}, inplace=True)  # Rename dynamically
-            df.index.name = 'date'
+            df.reset_index(inplace=True)
+            df.columns = ["date", "value"]
+            df["indicator"] = code  # Store indicator name
+            
+            # **Ensure the `date` column is correctly formatted as a string**
+            df["date"] = df["date"].astype(str)
 
-            if all_data is not None:
-                all_data = all_data.join(df, how="outer")
-            else:
-                all_data = df  # First dataset initializes `all_data`
+            # **Ensure correct column order before inserting**
+            cursor.executemany(
+                "INSERT OR IGNORE INTO macroeconomic_data (indicator, date, value) VALUES (?, ?, ?);",
+                df[["indicator", "date", "value"]].values.tolist()
+            )
 
-            print(f"Retrieved {name} ({code})")
-
+            print(f"Saved {name} ({code}) to database.")
             time.sleep(1)  # Prevent API rate limits
 
         except Exception as e:
             print(f"Could not retrieve {name} ({code}): {e}")
 
-    if all_data is not None and not all_data.empty:
-        all_data.reset_index(inplace=True)
-        all_data['date'] = all_data['date'].astype(str)  # Convert date to string format
-        
-        # Batch Insert for Efficiency
-        placeholders = ", ".join(["?"] * (len(all_data.columns)))  # Create placeholders for SQL query
-        columns = ", ".join(all_data.columns)
-        insert_query = f"INSERT OR IGNORE INTO macroeconomic_data ({columns}) VALUES ({placeholders});"
-
-        cursor.executemany(insert_query, all_data.values.tolist())
-        conn.commit()
-
-        print("\nNew economic data saved successfully.")
-    else:
-        print("No new economic data was retrieved.")
-
+    conn.commit()
     conn.close()
+
 
 # Ensure table exists before fetching data
 initialize_database()
-
+fetch_economic_data()

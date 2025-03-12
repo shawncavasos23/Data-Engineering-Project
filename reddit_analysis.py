@@ -1,10 +1,10 @@
-import praw # type: ignore
+import praw  # type: ignore
 import datetime
 import sqlite3
-import pandas as pd # type: ignore
+import time
 from database import create_connection
 
-# Reddit API credentials
+# 🔹 Reddit API Credentials
 REDDIT_CLIENT_ID = "iGbUVH-wZqqHRysT7wIEfg"
 REDDIT_CLIENT_SECRET = "iHq4HqhFESF3WiyLV6mRvCdNdKR_6Q"
 REDDIT_USER_AGENT = "RefrigeratorFew6940:WSB-Tracker:v1.0"
@@ -16,48 +16,55 @@ reddit = praw.Reddit(
     user_agent=REDDIT_USER_AGENT
 )
 
-def get_recent_ticker_mentions(ticker):
-    """Fetch recent mentions of a stock ticker from Reddit's WallStreetBets."""
-    print(f"Fetching Reddit mentions for {ticker}...")
-    subreddit = reddit.subreddit("wallstreetbets")
+def get_recent_ticker_mentions(ticker, limit=200):
+    """Fetch recent mentions of a stock ticker from r/wallstreetbets."""
     mentions = []
-    
     one_year_ago = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=365)
-    
+
     try:
-        for post in subreddit.search(f"${ticker}", limit=500):
+        for post in reddit.subreddit("wallstreetbets").new(limit=limit):  
             post_time = datetime.datetime.fromtimestamp(post.created_utc, datetime.timezone.utc)
-            if post_time >= one_year_ago:
-                mentions.append(
-                    (ticker, post.title, post.score, post.upvote_ratio, post_time.strftime("%Y-%m-%d"), "https://www.reddit.com" + post.permalink)
-                )
+            
+            if post_time >= one_year_ago and f"${ticker}" in post.title:
+                mentions.append((
+                    ticker,
+                    post.title,
+                    post.score,
+                    post.upvote_ratio if post.upvote_ratio is not None else 0.0,  # Handle `NoneType`
+                    post_time.strftime("%Y-%m-%d"),
+                    f"https://www.reddit.com{post.permalink}"
+                ))
+        
+        time.sleep(1)  # Prevent API rate limits
+
+    except praw.exceptions.APIException as e:
+        print(f"⚠ Reddit API Error: {e}")
     except Exception as e:
         print(f"⚠ Error fetching Reddit mentions for {ticker}: {e}")
-        return []
 
     return mentions
 
 def store_reddit_mentions(ticker):
     """Fetch and store Reddit mentions in the database."""
     mentions = get_recent_ticker_mentions(ticker)
+    
     if not mentions:
-        print(f"⚠ No new Reddit mentions found for {ticker}.")
-        return
+        return  # No mentions, no need to store anything
 
     conn = create_connection()
     cursor = conn.cursor()
 
     try:
         cursor.executemany("""
-            INSERT OR REPLACE INTO reddit_mentions (ticker, title, upvotes, upvote_ratio, date, link)
+            INSERT OR IGNORE INTO reddit_mentions (ticker, title, upvotes, upvote_ratio, date, link)
             VALUES (?, ?, ?, ?, ?, ?)
         """, mentions)
         conn.commit()
-        print(f"Stored {len(mentions)} Reddit mentions for {ticker}.")
     except Exception as e:
-        print(f"Database error storing Reddit mentions: {e}")
+        print(f"⚠ Database error storing Reddit mentions: {e}")
     finally:
         conn.close()
+
 
 def run_reddit_analysis(ticker):
     """Fetch and store Reddit mentions."""

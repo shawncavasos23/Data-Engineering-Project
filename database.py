@@ -11,12 +11,12 @@ def initialize_database():
     conn = create_connection()
     cursor = conn.cursor()
 
-    # Drop and recreate tables if schema needs updates
+    # Updated schema with only specified indicators
     cursor.executescript("""
     CREATE TABLE IF NOT EXISTS fundamentals (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         ticker TEXT NOT NULL UNIQUE,
-        sector TEXT,  -- Allows multiple sectors as comma-separated values
+        sector TEXT,
         pe_ratio REAL,
         market_cap REAL,
         revenue REAL,
@@ -30,6 +30,12 @@ def initialize_database():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         ticker TEXT NOT NULL,
         date DATE NOT NULL,
+        open REAL,
+        high REAL,
+        low REAL,
+        close REAL,
+        adj_close REAL,
+        volume INTEGER,
         ma50 REAL,
         ma200 REAL,
         macd REAL,
@@ -37,7 +43,11 @@ def initialize_database():
         rsi REAL,
         upper_band REAL,
         lower_band REAL,
-        volume INTEGER,
+        adx REAL,
+        obv INTEGER,
+        pivot REAL,
+        r1 REAL,
+        s1 REAL,
         UNIQUE(ticker, date),
         FOREIGN KEY (ticker) REFERENCES fundamentals(ticker) ON DELETE CASCADE
     );
@@ -75,7 +85,7 @@ def initialize_database():
     CREATE TABLE IF NOT EXISTS trade_signals (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         ticker TEXT NOT NULL,
-        signal TEXT NOT NULL CHECK(signal IN ('BUY', 'SELL', 'HOLD')),  -- Ensure only valid signals
+        signal TEXT NOT NULL CHECK(signal IN ('BUY', 'SELL', 'HOLD')),
         buy_price REAL,
         sell_price REAL,
         stop_loss REAL,
@@ -83,18 +93,17 @@ def initialize_database():
         FOREIGN KEY (ticker) REFERENCES fundamentals(ticker) ON DELETE CASCADE
     );
 
-    -- **Indexes for performance optimization**
     CREATE INDEX IF NOT EXISTS idx_technicals_ticker_date ON technicals (ticker, date);
     CREATE INDEX IF NOT EXISTS idx_reddit_ticker_date ON reddit_mentions (ticker, date);
     CREATE INDEX IF NOT EXISTS idx_signals_ticker ON trade_signals (ticker);
     """)
 
-    # **Preload 10 Stocks**
+    # Preload 10 Stocks
     tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "META", "NVDA", "NFLX", "JPM", "V"]
     cursor.executemany("INSERT OR IGNORE INTO fundamentals (ticker) VALUES (?);", [(t,) for t in tickers])
 
     conn.commit()
     conn.close()
 
-# Initialize database
+# Initialize the updated database
 initialize_database()

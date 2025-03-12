@@ -9,27 +9,27 @@ import plotly.express as px  # type: ignore
 DB_PATH = "trading_data.db"
 
 def fetch_stock_data(ticker):
-    """Fetch all stock-related data from the database."""
+    """Fetch stock data from the database."""
     conn = sqlite3.connect(DB_PATH)
 
     # Fetch Fundamentals
     fundamentals_query = "SELECT * FROM fundamentals WHERE ticker = ?"
     fundamentals = pd.read_sql(fundamentals_query, conn, params=(ticker,))
 
-    # Fetch Technical Indicators (latest 30 data points for compact view)
-    technicals_query = "SELECT * FROM technicals WHERE ticker = ? ORDER BY date DESC LIMIT 30"
+    # Fetch Technical Indicators (latest 50 data points for better visualization)
+    technicals_query = "SELECT * FROM technicals WHERE ticker = ? ORDER BY date DESC LIMIT 50"
     technicals = pd.read_sql(technicals_query, conn, params=(ticker,))
 
     # Fetch Macroeconomic Data (latest 10 rows)
     macro_query = "SELECT * FROM macroeconomic_data ORDER BY date DESC LIMIT 10"
     macro_data = pd.read_sql(macro_query, conn)
 
-    # Fetch News (latest 3 articles)
-    news_query = "SELECT * FROM news ORDER BY published_at DESC LIMIT 3"
+    # Fetch Latest 5 News Articles
+    news_query = "SELECT * FROM news ORDER BY published_at DESC LIMIT 5"
     news = pd.read_sql(news_query, conn)
 
-    # Fetch Sentiment Data (latest 3 mentions)
-    sentiment_query = "SELECT * FROM reddit_mentions WHERE ticker = ? ORDER BY date DESC LIMIT 3"
+    # Fetch Latest 5 Reddit Mentions
+    sentiment_query = "SELECT * FROM reddit_mentions WHERE ticker = ? ORDER BY date DESC LIMIT 5"
     sentiment = pd.read_sql(sentiment_query, conn, params=(ticker,))
 
     conn.close()
@@ -42,8 +42,76 @@ def fetch_stock_data(ticker):
         "sentiment": sentiment
     }
 
+def plot_candlestick_chart(data):
+    """Generate an interactive candlestick chart with moving averages."""
+    if data.empty or not all(col in data.columns for col in ["date", "open", "high", "low", "close"]):
+        return None
+
+    data["date"] = pd.to_datetime(data["date"])
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Candlestick(
+        x=data["date"],
+        open=data["open"],
+        high=data["high"],
+        low=data["low"],
+        close=data["close"],
+        name="Candlestick",
+        increasing_line_color='green',
+        decreasing_line_color='red'
+    ))
+
+    if "ma50" in data.columns:
+        fig.add_trace(go.Scatter(x=data["date"], y=data["ma50"], mode='lines', name='50-Day MA', line=dict(color='blue')))
+    if "ma200" in data.columns:
+        fig.add_trace(go.Scatter(x=data["date"], y=data["ma200"], mode='lines', name='200-Day MA', line=dict(color='red')))
+
+    fig.update_layout(
+        title="Candlestick Chart with Moving Averages",
+        xaxis_title="Date",
+        yaxis_title="Price",
+        xaxis_rangeslider_visible=False,
+        template="plotly_dark"
+    )
+    
+    return fig
+
+def plot_technical_indicators(data):
+    """Generate RSI and MACD Charts."""
+    if data.empty:
+        return None, None
+
+    fig_rsi = go.Figure()
+    fig_rsi.add_trace(go.Scatter(x=data["date"], y=data["rsi"], mode='lines', name='RSI', line=dict(color='purple')))
+    fig_rsi.update_layout(title="Relative Strength Index (RSI)", xaxis_title="Date", yaxis_title="RSI", template="plotly_dark")
+
+    fig_macd = go.Figure()
+    fig_macd.add_trace(go.Scatter(x=data["date"], y=data["macd"], mode='lines', name='MACD', line=dict(color='orange')))
+    fig_macd.add_trace(go.Scatter(x=data["date"], y=data["signal_line"], mode='lines', name='Signal Line', line=dict(color='blue')))
+    fig_macd.update_layout(title="MACD vs Signal Line", xaxis_title="Date", yaxis_title="MACD", template="plotly_dark")
+
+    return fig_rsi, fig_macd
+
+def bordered_section(title, content):
+    """Wrap content inside a bordered container for better UI separation."""
+    st.markdown(
+        f"""
+        <div style="
+            border: 2px solid #444; 
+            padding: 15px; 
+            border-radius: 10px; 
+            margin: 10px 0px; 
+            background-color: #1e1e1e;">
+            <h3 style="color: white;">{title}</h3>
+            {content}
+        </div>
+        """, 
+        unsafe_allow_html=True
+    )
+
 def show_dashboard(ticker):
-    """Display the stock data in a full-screen, single-page layout without scrolling."""
+    """Display stock data in a full-screen, single-page layout."""
     st.set_page_config(layout="wide")
 
     # Hide sidebar for full-screen experience
@@ -51,7 +119,6 @@ def show_dashboard(ticker):
         <style>
             section[data-testid="stSidebar"] {display: none;}
             div.block-container {padding-top: 1rem; padding-bottom: 1rem;}
-            .stPlotlyChart {overflow: hidden !important;}
         </style>
     """, unsafe_allow_html=True)
 
@@ -60,68 +127,43 @@ def show_dashboard(ticker):
     # Fetch stock data
     data = fetch_stock_data(ticker)
 
-    # Create a **Grid Layout** for the full-screen dashboard
-    col1, col2 = st.columns([2, 3])
+    col1, col2 = st.columns([3, 2])
 
-    # **Left Column (Fundamentals, News, Sentiment)**
     with col1:
-        st.subheader("Company Fundamentals")
-        if not data["fundamentals"].empty:
-            num_cols = data["fundamentals"].select_dtypes(include=["float64", "int64"]).columns
-            st.dataframe(data["fundamentals"].style.format({col: "{:,.2f}" for col in num_cols}), height=180)
-        else:
-            st.warning("No fundamental data available.")
-
-        st.subheader("Latest News")
-        if not data["news"].empty:
-            for _, row in data["news"].iterrows():
-                st.markdown(f"**[{row['title']}]({row['url']})** - {row['source']}")
-                st.write(row["description"])
-        else:
-            st.warning("No news data available.")
-
-        st.subheader("Market Sentiment")
-        if not data["sentiment"].empty:
-            fig_sentiment = px.bar(
-                data["sentiment"],
-                x="date",
-                y="upvotes",
-                color="upvote_ratio",
-                labels={"upvotes": "Upvotes", "date": "Date", "upvote_ratio": "Upvote Ratio"},
-                title="Reddit Sentiment Analysis",
-            )
-            st.plotly_chart(fig_sentiment, use_container_width=True, config={'scrollZoom': False})
-        else:
-            st.warning("No sentiment data available.")
-
-    # **Right Column (Technical Analysis & Macroeconomic Data)**
-    with col2:
-        st.subheader("Technical Indicators & Market Trends")
-
-        if not data["technicals"].empty:
-            fig_ma = go.Figure()
-            fig_ma.add_trace(go.Scatter(x=data["technicals"]["date"], y=data["technicals"]["ma50"], mode='lines', name='50-Day MA', line=dict(color='blue')))
-            fig_ma.add_trace(go.Scatter(x=data["technicals"]["date"], y=data["technicals"]["ma200"], mode='lines', name='200-Day MA', line=dict(color='red')))
-            fig_ma.update_layout(title="50-Day vs 200-Day Moving Averages", xaxis_title="Date", yaxis_title="Price")
-            st.plotly_chart(fig_ma, use_container_width=True, config={'scrollZoom': False})
-
-            fig_vol = px.bar(
-                data["technicals"],
-                x="date",
-                y="volume",
-                labels={"volume": "Trading Volume", "date": "Date"},
-                title="Trading Volume Over Time",
-            )
-            st.plotly_chart(fig_vol, use_container_width=True, config={'scrollZoom': False})
+        st.subheader("Candlestick Chart")
+        fig_candlestick = plot_candlestick_chart(data["technicals"])
+        if fig_candlestick:
+            st.plotly_chart(fig_candlestick, use_container_width=True, config={'scrollZoom': False})
         else:
             st.warning("No technical data available.")
 
-        st.subheader("Macroeconomic Indicators")
-        if not data["macro_data"].empty:
-            num_cols_macro = data["macro_data"].select_dtypes(include=["float64", "int64"]).columns
-            st.dataframe(data["macro_data"].style.format({col: "{:,.2f}" for col in num_cols_macro}), height=180)
+        st.subheader("Technical Indicators")
+        fig_rsi, fig_macd = plot_technical_indicators(data["technicals"])
+        if fig_rsi:
+            st.plotly_chart(fig_rsi, use_container_width=True, config={'scrollZoom': False})
+            st.plotly_chart(fig_macd, use_container_width=True, config={'scrollZoom': False})
         else:
-            st.warning("No macroeconomic data available.")
+            st.warning("No technical indicator data available.")
+
+    with col2:
+        bordered_section("Company Fundamentals", data["fundamentals"].to_html(index=False) if not data["fundamentals"].empty else "No fundamental data available.")
+
+        bordered_section("Latest News", 
+            "".join([f"<p><a href='{row['url']}' target='_blank'>{row['title']}</a> - {row['source']}</p>" for _, row in data["news"].iterrows()])
+            if not data["news"].empty else "No news data available."
+        )
+
+        bordered_section("Latest Reddit Mentions", 
+            "".join([f"<p><a href='{row['link']}' target='_blank'>{row['title']}</a> ({row['date']}) - Upvotes: {row['upvotes']}</p>" for _, row in data["sentiment"].iterrows()])
+            if not data["sentiment"].empty else "No Reddit mentions available."
+        )
+
+        if not data["macro_data"].empty:
+            macro_pivot = data["macro_data"].pivot(index="date", columns="indicator", values="value")
+            macro_pivot.index = pd.to_datetime(macro_pivot.index).strftime("%Y-%m-%d")
+            bordered_section("Macroeconomic Indicators", macro_pivot.to_html(index=True))
+        else:
+            bordered_section("Macroeconomic Indicators", "No macroeconomic data available.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Stock Dashboard")

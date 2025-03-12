@@ -39,7 +39,7 @@ def main():
 
     # Update Data
     elif args.command == "update":
-        print(f"Fetching latest data for {args.ticker}...")
+        print(f"Updating data for {args.ticker}...")
         update_stock_data(args.ticker)
         print(f"Data updated for {args.ticker}.")
 

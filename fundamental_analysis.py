@@ -5,16 +5,29 @@ import pandas as pd  # type: ignore
 import numpy as np  # type: ignore
 from sklearn.preprocessing import StandardScaler  # type: ignore
 from sklearn.cluster import KMeans  # type: ignore
+from sklearn.impute import SimpleImputer  # type: ignore
 from kneed import KneeLocator  # type: ignore
 from database import create_connection
+import os
 
+API_KEY = "ryvHpF6OKhRpZ4c7YJ4zBv8JD4PwcDbl"
 
 def get_sp500_symbols_and_sectors():
     """Fetch S&P 500 tickers and their sector information from Wikipedia."""
     url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
-    tables = pd.read_html(url)
-    sp500_df = tables[0]  # First table contains stock symbols and sectors
-    return sp500_df[['Symbol', 'GICS Sector']].rename(columns={'Symbol': 'ticker', 'GICS Sector': 'sector'})
+
+    try:
+        tables = pd.read_html(url)
+        if len(tables) == 0 or "Symbol" not in tables[0].columns:
+            print("⚠ Wikipedia table structure changed. Scraper needs an update.")
+            return None
+
+        sp500_df = tables[0]  # First table contains stock symbols and sectors
+        return sp500_df[['Symbol', 'GICS Sector']].rename(columns={'Symbol': 'ticker', 'GICS Sector': 'sector'})
+
+    except Exception as e:
+        print(f"⚠ Error fetching S&P 500 data from Wikipedia: {e}")
+        return None
 
 def get_sector_peers(ticker, sp500_df):
     """Find all companies in the same sector as the given ticker."""
@@ -22,15 +35,11 @@ def get_sector_peers(ticker, sp500_df):
     if len(sector) == 0:
         print(f"⚠ {ticker} not found in S&P 500 list.")
         return []
-    
+
     sector = sector[0]  # Get sector name
     same_sector_tickers = sp500_df[sp500_df['sector'] == sector]['ticker'].tolist()
-    
-    print(f"Sector for {ticker}: {sector}")
 
     return same_sector_tickers
-
-API_KEY = "your_api_key_here"
 
 def get_fundamental_data(ticker):
     """Fetch fundamental financial data and sector info for a given stock, with retries on failure."""
@@ -71,34 +80,42 @@ def get_fundamental_data(ticker):
             return fundamentals
 
         except requests.exceptions.RequestException as e:
-            print(f"Error fetching fundamental data for {ticker}: {e}")
+            print(f"⚠ Error fetching fundamental data for {ticker}: {e}")
             attempts += 1
             time.sleep(wait_time)
             wait_time *= 2
 
-    print(f"Skipping {ticker} after 3 failed attempts.")
+    print(f"⏩ Skipping {ticker} after 3 failed attempts.")
     return None
 
 def store_fundamentals(data):
     """Stores fetched fundamental data into the database."""
     if data is None:
+        print("No fundamental data to store.")
         return
 
-    conn = create_connection()
-    cursor = conn.cursor()
+    try:
+        conn = create_connection()
+        cursor = conn.cursor()
 
-    cursor.execute("""
-        INSERT OR REPLACE INTO fundamentals (
-            ticker, sector, pe_ratio, 
-            market_cap, revenue, beta, roa, roe
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        data["ticker"], data["sector"], data["pe_ratio"],
-        data["market_cap"], data["revenue"], data["beta"], data["roa"], data["roe"]
-    ))
+        cursor.execute("""
+            INSERT OR REPLACE INTO fundamentals (
+                ticker, sector, pe_ratio, 
+                market_cap, revenue, beta, roa, roe
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            data["ticker"], data["sector"], data["pe_ratio"],
+            data["market_cap"], data["revenue"], data["beta"], data["roa"], data["roe"]
+        ))
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+        print(f"Successfully stored {data['ticker']} in database!")
+
+    except sqlite3.Error as e:
+        print(f"⚠ SQLite Database Error: {e}")
+
+    finally:
+        conn.close()
 
 def cluster_companies():
     """Uses K-Means clustering to group companies based on financial metrics."""
@@ -107,7 +124,7 @@ def cluster_companies():
     conn.close()
 
     if df.empty:
-        print("No data available for clustering.")
+        print("⚠ No data available for clustering.")
         return df
 
     print("\n[DEBUG] Missing values in raw fundamentals dataset:")
@@ -115,25 +132,33 @@ def cluster_companies():
 
     features = df[['pe_ratio', 'market_cap', 'revenue', 'beta', 'roa', 'roe']].copy()
 
-    features.fillna(features.mean(), inplace=True)  # Handle missing values
+    # 🔹 Handle missing values properly
+    imputer = SimpleImputer(strategy="mean")
+    features = pd.DataFrame(imputer.fit_transform(features), columns=features.columns)
+
     scaler = StandardScaler()
     scaled_features = scaler.fit_transform(features)
 
-    k_range = range(1, 11)
-    inertia = [KMeans(n_clusters=k, random_state=42, n_init=10).fit(scaled_features).inertia_ for k in k_range]
-    kneedle = KneeLocator(k_range, inertia, curve="convex", direction="decreasing")
-    optimal_k = kneedle.elbow or 3
+    try:
+        k_range = range(1, 11)
+        inertia = [KMeans(n_clusters=k, random_state=42, n_init=10).fit(scaled_features).inertia_ for k in k_range]
+        kneedle = KneeLocator(k_range, inertia, curve="convex", direction="decreasing")
+        optimal_k = kneedle.elbow or 3
 
-    kmeans = KMeans(n_clusters=optimal_k, random_state=42, n_init=10)
-    df["cluster"] = kmeans.fit_predict(scaled_features)
+        kmeans = KMeans(n_clusters=optimal_k, random_state=42, n_init=10)
+        df["cluster"] = kmeans.fit_predict(scaled_features)
 
-    conn = create_connection()
-    cursor = conn.cursor()
-    for _, row in df.iterrows():
-        cursor.execute("UPDATE fundamentals SET cluster = ? WHERE ticker = ?", (row["cluster"], row["ticker"]))
+        conn = create_connection()
+        cursor = conn.cursor()
+        for _, row in df.iterrows():
+            cursor.execute("UPDATE fundamentals SET cluster = ? WHERE ticker = ?", (row["cluster"], row["ticker"]))
 
-    conn.commit()
-    conn.close()
-    
-    print("\n[INFO] Clustering complete. Clusters assigned to database.")
+        conn.commit()
+        conn.close()
+
+        print("\n✅ Clustering complete. Clusters assigned to database.")
+
+    except Exception as e:
+        print(f"⚠ Error during clustering: {e}")
+
     return df

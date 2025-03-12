@@ -19,10 +19,10 @@ def fetch_stock_price(ticker):
             latest_price = history["Close"].iloc[-1]
             return latest_price
         else:
-            print(f"⚠ No data found for {ticker}. Check the ticker symbol.")
+            print(f"No data found for {ticker}. Check the ticker symbol.")
             return None
     except Exception as e:
-        print(f"❌ Error fetching data for {ticker}: {e}")
+        print(f"Error fetching data for {ticker}: {e}")
         return None
 
 # Command-line argument for ticker
@@ -38,8 +38,8 @@ while True:
     if price is not None:
         message = {"ticker": ticker, "price": price, "timestamp": time.time()}
         producer.send("stock_prices", message)
-        print(f"✅ Sent: {message}")
+        print(f"Sent: {message}")
     else:
-        print("⚠ Skipping sending due to missing price data.")
+        print("Skipping sending due to missing price data.")
 
-    time.sleep(60)  # Fetch price every minute
+    time.sleep(60)
