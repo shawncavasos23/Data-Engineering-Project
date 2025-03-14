@@ -104,25 +104,30 @@ def format_fundamentals(fundamentals):
             """, unsafe_allow_html=True)
 
 def format_macroeconomic_data(macro_data):
-    """Format and display macroeconomic indicators in separate columns at the bottom of the screen."""
+    """Format and display macroeconomic indicators at the bottom of the screen."""
     if macro_data.empty:
         return "No macroeconomic data available."
 
-    # Extract latest available data
-    latest_data = macro_data.iloc[0]
+    # Pivot the macroeconomic data for easier access
+    latest_data = macro_data.set_index("indicator")["value"].to_dict()
 
-    def safe_format(value):
-        """Safely format macroeconomic numbers while handling None values."""
-        return f"{value:,.2f}" if isinstance(value, (int, float)) else "N/A"
+    def safe_format(value, scale=1, unit=""):
+        """Safely format macroeconomic numbers while handling None values and scaling appropriately."""
+        if value is None:
+            return "N/A"
+    
+        formatted_value = f"{(value / scale):,.2f}" if scale != 1 else f"{value:,.2f}"
+        return f"{formatted_value} {unit}".strip()
 
-    # Define macroeconomic indicators to display
+
+    # Define macroeconomic indicators with scaling and units
     macro_indicators = {
         "CPI (Inflation)": safe_format(latest_data.get("CPIAUCSL")),
         "PPI (Producer Prices)": safe_format(latest_data.get("PPIACO")),
-        "Unemployment Rate": safe_format(latest_data.get("UNRATE")),
-        "Total Employment": safe_format(latest_data.get("PAYEMS")),
-        "Fed Funds Rate": safe_format(latest_data.get("FEDFUNDS")),
-        "10-Year Treasury Yield": safe_format(latest_data.get("GS10")),
+        "Unemployment Rate": safe_format(latest_data.get("UNRATE"), unit="%"),
+        "Total Employment": safe_format(latest_data.get("PAYEMS"), scale=1000, unit="Million"),  # PAYEMS is in thousands
+        "Fed Funds Rate": safe_format(latest_data.get("FEDFUNDS"), unit="%"),
+        "10-Year Treasury Yield": safe_format(latest_data.get("GS10"), unit="%"),
     }
 
     # Create one column per macroeconomic indicator
