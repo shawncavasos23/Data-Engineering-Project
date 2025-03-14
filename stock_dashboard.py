@@ -192,16 +192,40 @@ def plot_rsi_chart(data):
     fig.update_layout(title="RSI Indicator", xaxis_title="Date", yaxis_title="RSI", template="plotly_white", height=600)
     return fig
 
-def plot_volume_chart(data):
-    """Generate a compact volume chart."""
-    if data.empty or "volume" not in data.columns:
+def plot_obv_and_volume_chart(data):
+    """Generate OBV and Volume on the same plot."""
+    if data.empty or not all(col in data.columns for col in ["date", "obv", "volume"]):
         return go.Figure()
-    
-    fig = go.Figure()
-    fig.add_trace(go.Bar(x=data["date"], y=data["volume"], name="Volume", marker=dict(color='rgba(0, 0, 255, 0.3)')))
 
-    fig.update_layout(title="Trading Volume", xaxis_title="Date", yaxis_title="Volume", template="plotly_white", height=600)
+    fig = go.Figure()
+
+    # Plot Volume as Bars
+    fig.add_trace(go.Bar(
+        x=data["date"], y=data["volume"],
+        name="Volume", marker=dict(color="blue", opacity=0.3),
+        yaxis="y1"
+    ))
+
+    # Plot OBV as a Line
+    fig.add_trace(go.Scatter(
+        x=data["date"], y=data["obv"],
+        mode="lines", name="On-Balance Volume (OBV)",
+        line=dict(color="green"),
+        yaxis="y2"
+    ))
+
+    # Configure Dual Y-Axis
+    fig.update_layout(
+        title="OBV & Trading Volume",
+        xaxis=dict(title="Date"),
+        yaxis=dict(title="Volume", side="left", showgrid=False),
+        yaxis2=dict(title="OBV", overlaying="y", side="right", showgrid=False),
+        template="plotly_white",
+        height=600
+    )
+
     return fig
+
 
 def show_dashboard(ticker):
     """Display stock data in a structured layout."""
@@ -232,7 +256,7 @@ def show_dashboard(ticker):
 
     show_candlestick = st.sidebar.checkbox("Show Candlestick Chart", value=True)
     show_rsi = st.sidebar.checkbox("Show RSI Chart", value=True)
-    show_volume = st.sidebar.checkbox("Show Volume Chart", value=True)
+    show_obv_volume = st.sidebar.checkbox("Show Volume Chart", value=True)
     num_news_articles = st.sidebar.slider("Number of News Articles", 1, 20, 5)
     num_reddit_mentions = st.sidebar.slider("Number of Reddit Mentions", 1, 20, 5)
 
@@ -255,10 +279,11 @@ def show_dashboard(ticker):
                 st.subheader("RSI Indicator")
                 st.plotly_chart(plot_rsi_chart(data["technicals"]), use_container_width=True)
         
-        if show_volume:
+        if show_obv_volume:
             with volume_col:
-                st.subheader("Volume Chart")
-                st.plotly_chart(plot_volume_chart(data["technicals"]), use_container_width=True)
+                st.subheader("OBV & Volume Chart")
+                st.plotly_chart(plot_obv_and_volume_chart(data["technicals"]), use_container_width=True)
+
             
     with col2:
         st.subheader("Latest News")
