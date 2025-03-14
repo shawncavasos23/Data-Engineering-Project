@@ -26,7 +26,6 @@ def get_fundamental_data(ticker):
     data_exists = cursor.fetchone()[0]
 
     if data_exists:
-        print(f"Fundamentals already exist for {ticker}. Skipping API call.")
         conn.close()
         return  # Prevents API call if data is already there
 

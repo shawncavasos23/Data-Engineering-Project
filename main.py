@@ -50,6 +50,16 @@ def stop_all_processes():
     else:
         print("No active Consumer to stop.")
 
+def is_streamlit_running():
+    """Check if Streamlit is already running to prevent duplicate processes."""
+    for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+        try:
+            if proc.info["cmdline"] and "streamlit" in " ".join(proc.info["cmdline"]):
+                return True
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            continue
+    return False
+
 def main():
     parser = argparse.ArgumentParser(description="Trading Dashboard Controller")
 
@@ -136,10 +146,24 @@ def main():
     # Launch Streamlit Dashboard
     elif args.command == "show":
         ticker = args.ticker or DEFAULT_TICKER
+
+        if is_streamlit_running():
+            print("Streamlit is already running.")
+            return
+
         print(f"Launching stock dashboard for {ticker}...")
 
         try:
-            subprocess.run(["streamlit", "run", "stock_dashboard.py", "--", ticker])
+            process = subprocess.Popen(["streamlit", "run", "stock_dashboard.py", "--", ticker])
+
+            # Gracefully handle Ctrl+C
+            try:
+                process.wait()
+            except KeyboardInterrupt:
+                print("\nStock dashboard interrupted...")
+                process.terminate()
+                sys.exit(0)
+
         except FileNotFoundError:
             print("Error: Streamlit is not installed or stock_dashboard.py is missing.")
 

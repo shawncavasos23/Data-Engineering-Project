@@ -1,8 +1,6 @@
-import requests  # type: ignore
+import feedparser  # type: ignore
 import sqlite3
 import datetime
-
-NEWS_API_KEY = "da4034cbcb214777a510dd89b5b9bb69"
 
 def initialize_database():
     """Creates the news database if it does not exist."""
@@ -11,45 +9,47 @@ def initialize_database():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS news (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker TEXT NOT NULL,  -- Each article is linked to a specific stock
                 source TEXT,
                 title TEXT NOT NULL,
                 description TEXT,
                 url TEXT NOT NULL UNIQUE,
                 published_at DATETIME NOT NULL,
-                UNIQUE(title, published_at)
+                UNIQUE(ticker, title, published_at),
+                FOREIGN KEY (ticker) REFERENCES fundamentals(ticker) ON DELETE CASCADE
             )
         """)
         conn.commit()
 
-def fetch_news(ticker):
-    """Fetches the latest news articles for a given stock ticker from NewsAPI and stores them in SQLite."""
-    
+def fetch_news(ticker, limit=10):
+    """Fetches the latest news articles for a given stock ticker from Google News RSS and stores them under the correct ticker."""
+
     conn = sqlite3.connect("trading_data.db")
     cursor = conn.cursor()
 
-    # Get the latest `published_at` timestamp from the database
-    cursor.execute("SELECT MAX(published_at) FROM news WHERE title LIKE ?", (f"%{ticker}%",))
+    # Get the latest `published_at` timestamp for this specific ticker
+    cursor.execute("SELECT MAX(published_at) FROM news WHERE ticker = ?", (ticker,))
     last_published_at = cursor.fetchone()[0]
 
-    # If no news is found in the database, fetch all available articles
+    # Convert timestamp to datetime object
     if last_published_at:
         try:
             last_published_at = datetime.datetime.strptime(last_published_at, "%Y-%m-%d %H:%M:%S")
         except ValueError:
-            last_published_at = None  # Reset if the format is invalid
+            last_published_at = None  # Reset if format is invalid
 
-    url = f"https://newsapi.org/v2/everything?q={ticker}&language=en&sortBy=publishedAt&apiKey={NEWS_API_KEY}"
+    # Google News RSS URL (fetches news specifically for the given ticker)
+    google_news_rss_url = f"https://news.google.com/rss/search?q={ticker}&hl=en-US&gl=US&ceid=US:en"
 
     try:
-        response = requests.get(url)
-        response.raise_for_status()  # Raise HTTPError for bad responses
-        data = response.json()
+        # Fetch RSS feed
+        feed = feedparser.parse(google_news_rss_url)
 
-        if data.get("status") != "ok":
-            print(f"Error from NewsAPI: {data.get('message', 'Unknown error')}")
+        if feed.status != 200:
+            print(f"Error fetching Google News RSS for {ticker}: {feed.status}")
             return
 
-        articles = data.get("articles", [])[:10]  # Limit to 10 latest articles
+        articles = feed.entries[:limit]  # Limit number of articles
 
         if not articles:
             print(f"No new news articles found for {ticker}.")
@@ -57,17 +57,17 @@ def fetch_news(ticker):
 
         new_articles = []
         for article in articles:
-            source = article.get("source", {}).get("name", "Unknown")
+            source = article.get("source", {}).get("title", "Unknown")
             title = article.get("title", "").strip()
-            description = article.get("description", "").strip()
-            url = article.get("url", "").strip()
-            published_at = article.get("publishedAt", "")
+            description = article.get("summary", "").strip()
+            url = article.get("link", "").strip()
+            published_at = article.get("published", "")
 
             if not title or not url or not published_at:
                 continue  # Skip incomplete articles
 
             try:
-                published_at_dt = datetime.datetime.strptime(published_at, "%Y-%m-%dT%H:%M:%SZ")
+                published_at_dt = datetime.datetime.strptime(published_at, "%a, %d %b %Y %H:%M:%S %Z")
             except ValueError:
                 continue  # Skip article if date format is incorrect
 
@@ -75,18 +75,39 @@ def fetch_news(ticker):
             if last_published_at and published_at_dt <= last_published_at:
                 continue
 
-            new_articles.append((source, title, description, url, published_at_dt.strftime("%Y-%m-%d %H:%M:%S")))
+            new_articles.append((ticker, source, title, description, url, published_at_dt.strftime("%Y-%m-%d %H:%M:%S")))
 
-        # Insert new articles into database
+        # Insert new articles into the database
         if new_articles:
             cursor.executemany("""
-                INSERT OR IGNORE INTO news (source, title, description, url, published_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT OR IGNORE INTO news (ticker, source, title, description, url, published_at)
+                VALUES (?, ?, ?, ?, ?, ?)
             """, new_articles)
             conn.commit()
+            print(f"Stored {len(new_articles)} Google News articles for {ticker}.")
 
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching news for {ticker}: {e}")
+    except Exception as e:
+        print(f"Error fetching news from Google RSS for {ticker}: {e}")
+
+    finally:
+        conn.close()
+
+def run_news_analysis(ticker):
+    """Fetch and store news from Google News RSS, then return the mention count from the database."""
+    fetch_news(ticker)
+
+    conn = sqlite3.connect("trading_data.db")
+    cursor = conn.cursor()
+
+    try:
+        # Retrieve stored news count for the ticker
+        cursor.execute("SELECT COUNT(*) FROM news WHERE ticker = ?", (ticker,))
+        mention_count = cursor.fetchone()[0] or 0
+        return {"ticker": ticker, "news_mentions": mention_count}
+
+    except Exception as e:
+        print(f"Database error retrieving news mentions count for {ticker}: {e}")
+        return {"ticker": ticker, "news_mentions": 0}
 
     finally:
         conn.close()

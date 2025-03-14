@@ -4,7 +4,7 @@ import sqlite3
 import time
 from database import create_connection
 
-# Reddit API Credentials (Ensure these are set securely in environment variables)
+# Reddit API Credentials
 REDDIT_CLIENT_ID = "iGbUVH-wZqqHRysT7wIEfg"
 REDDIT_CLIENT_SECRET = "iHq4HqhFESF3WiyLV6mRvCdNdKR_6Q"
 REDDIT_USER_AGENT = "RefrigeratorFew6940:WSB-Tracker:v1.0"
@@ -16,82 +16,59 @@ reddit = praw.Reddit(
     user_agent=REDDIT_USER_AGENT
 )
 
-def get_recent_ticker_mentions(ticker, limit=20):
-    """Fetch recent mentions of a stock ticker from r/wallstreetbets."""
+def get_recent_ticker_mentions(ticker):
+    """Fetch recent mentions of a stock ticker from WallStreetBets."""
+    subreddit = reddit.subreddit("wallstreetbets")
     mentions = []
-    retry_attempts = 3
+    
+    one_year_ago = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=365)
 
-    print(f"Searching r/wallstreetbets for {ticker} mentions...")
+    for post in subreddit.search(f"${ticker}", limit=1000):  # Fetch up to 1000 mentions
+        post_time = datetime.datetime.fromtimestamp(post.created_utc, datetime.timezone.utc)
 
-    for attempt in range(retry_attempts):
-        try:
-            for post in reddit.subreddit("wallstreetbets").new(limit=limit):
-                title_lower = post.title.lower()
+        if post_time >= one_year_ago:
+            upvotes = post.score
+            upvote_ratio = post.upvote_ratio
+            downvotes = int(upvotes * (1 - upvote_ratio))  
+            link = "https://www.reddit.com" + post.permalink
+            content = post.selftext[:500] if post.selftext else "No content available"  # Limit content length
 
-                # Match both "$AAPL" and "AAPL"
-                if f"${ticker.lower()}" in title_lower or f"{ticker.lower()}" in title_lower:
-                    mentions.append((
-                        ticker,
-                        post.title,
-                        post.score,
-                        post.upvote_ratio if post.upvote_ratio is not None else 0.0,
-                        datetime.datetime.fromtimestamp(post.created_utc).strftime("%Y-%m-%d"),
-                        f"https://www.reddit.com{post.permalink}"
-                    ))
+            mentions.append((ticker, post.title, content, upvotes, upvote_ratio, post_time, link))
 
-            time.sleep(3)  # Prevent API rate limits
-            break  # Exit loop on success
-
-        except praw.exceptions.APIException as e:
-            print(f"Reddit API Error ({attempt+1}/{retry_attempts}): {e}")
-            time.sleep(2 ** attempt)  # Exponential backoff
-
-        except Exception as e:
-            print(f"Error fetching Reddit mentions for {ticker}: {e}")
-            break  # Exit loop on unknown error
-
-    print(f"Total mentions found: {len(mentions)}")
     return mentions
 
 def store_reddit_mentions(ticker):
-    """Fetch and store Reddit mentions in the database while preventing duplicate calls."""
+    """Fetch and store Reddit mentions in the database while preventing duplicates."""
     
-    # Check if the ticker exists in fundamentals table
     conn = create_connection()
     cursor = conn.cursor()
-    
+
+    # Ensure the ticker exists in `fundamentals`
     cursor.execute("SELECT COUNT(*) FROM fundamentals WHERE ticker = ?", (ticker,))
     ticker_exists = cursor.fetchone()[0]
     
     if not ticker_exists:
-        print(f"⚠ {ticker} not found in fundamentals table. Skipping Reddit mentions.")
+        print(f"{ticker} not found in fundamentals table. Skipping Reddit mentions.")
         conn.close()
-        return  # If ticker is not found in fundamentals, do not insert into reddit_mentions
+        return  
 
     mentions = get_recent_ticker_mentions(ticker)
 
     if not mentions:
         print(f"No new mentions found for {ticker}. Skipping database update.")
         conn.close()
-        return  # No mentions, no need to store anything
+        return  
 
     try:
         cursor.executemany("""
-            INSERT OR IGNORE INTO reddit_mentions (ticker, title, upvotes, upvote_ratio, date, link)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT OR IGNORE INTO reddit_mentions (ticker, title, content, upvotes, upvote_ratio, date, link)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """, mentions)
 
-        # Optionally store the mention count in trade_signals
-        cursor.execute("""
-            INSERT OR REPLACE INTO trade_signals (ticker, signal, date_generated)
-            VALUES (?, 'REDDIT', DATE('now'))
-        """, (ticker,))
-
         conn.commit()
-        print(f"Stored {len(mentions)} Reddit mentions for {ticker}.")
 
     except sqlite3.IntegrityError as e:
-        print(f"Integrity error while storing Reddit mentions for {ticker}: {e}")
+        print(f"Integrity error storing Reddit mentions for {ticker}: {e}")
 
     except Exception as e:
         print(f"Database error storing Reddit mentions: {e}")
@@ -99,16 +76,14 @@ def store_reddit_mentions(ticker):
     finally:
         conn.close()
 
-
 def run_reddit_analysis(ticker):
-    """Fetch and store Reddit mentions, then return the mention count from the database."""
+    """Fetch and store Reddit mentions, then return the mention count."""
     store_reddit_mentions(ticker)
 
     conn = create_connection()
     cursor = conn.cursor()
 
     try:
-        # Retrieve stored mention count
         cursor.execute("SELECT COUNT(*) FROM reddit_mentions WHERE ticker = ?", (ticker,))
         mention_count = cursor.fetchone()[0] or 0
         return {"ticker": ticker, "reddit_mentions": mention_count}

@@ -40,7 +40,6 @@ def fetch_economic_data():
             last_date = datetime.datetime.strptime(str(last_date), "%Y-%m-%d")
             start_date = last_date + datetime.timedelta(days=1)  # Start from next day
         except ValueError:
-            print(f"Warning: Invalid date format found in DB ({last_date}), resetting to default start date.")
             start_date = start
     else:
         start_date = start
@@ -55,7 +54,6 @@ def fetch_economic_data():
                 df = web.DataReader(code, 'fred', start_date, end)
 
                 if df.empty:
-                    print(f"Warning: No data available for {name} ({code}) in the given range.")
                     break  # No need to retry if data is empty
 
                 df.reset_index(inplace=True)

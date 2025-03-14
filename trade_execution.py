@@ -36,7 +36,7 @@ def get_position_size(ticker, max_dollars=5000):
         print(f"Error fetching market price for {ticker}: {e}. Defaulting to 1 share.")
         return 1  # Default to 1 share if price fetch fails
 
-def place_trade(ticker, signal, buy_price, sell_price, stop_loss):
+def place_trade(ticker, signal, buy_price, sell_price):
     """
     Places a trade order based on the AI-generated trading signal.
 

@@ -36,4 +36,3 @@ def send_email(subject, body):
         print("Connection error: Unable to reach Gmail SMTP server.")
     except Exception as e:
         print(f"Failed to send email: {e}")
-
