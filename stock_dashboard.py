@@ -11,24 +11,30 @@ st.set_page_config(layout="wide", page_title="Stock Analysis Dashboard")
 st.markdown(
     """
     <style>
-    .block-container { padding-top: 5px !important; }
-    .css-1d391kg { background-color: #f8f9fa !important; padding: 20px; border-radius: 10px; }
-    h1 { color: #2c3e50; text-align: center; }
+    .block-container { padding-top: 20px !important; }
+    .title-text {
+        font-size: 32px;
+        font-weight: bold;
+        text-align: center;
+        margin-bottom: 20px;
+        color: white;
+    }
     .info-card {
-        border: 1px solid #ddd;
+        border: 1px solid #444;
         padding: 15px;
         border-radius: 8px;
-        background: linear-gradient(135deg, #f9f9f9, #ffffff);
-        box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+        background: linear-gradient(135deg, #2c3e50, #3a3f44);
+        box-shadow: 2px 2px 10px rgba(0,0,0,0.2);
         margin-bottom: 15px;
+        color: white;
     }
-    .info-card a { text-decoration: none; color: #0077cc; font-size: 18px; font-weight: bold; }
-    .info-card p { margin: 5px 0; color: #666; font-size: 14px; }
+    .info-card a { text-decoration: none; color: #1abc9c; font-size: 18px; font-weight: bold; }
+    .info-card p { margin: 5px 0; color: #ddd; font-size: 14px; }
     .chart-container {
         padding: 10px;
-        background: white;
+        background: #2c3e50;
         border-radius: 10px;
-        box-shadow: 2px 2px 15px rgba(0,0,0,0.1);
+        box-shadow: 2px 2px 15px rgba(0,0,0,0.3);
     }
     </style>
     """,
@@ -150,7 +156,6 @@ def format_macroeconomic_data(macro_data):
             </div>
             """, unsafe_allow_html=True)
 
-
 def plot_candlestick_chart(data):
     """Generate an interactive candlestick chart with moving averages."""
     if data.empty or not all(col in data.columns for col in ["date", "open", "high", "low", "close"]):
@@ -171,120 +176,68 @@ def plot_candlestick_chart(data):
         fig.add_trace(go.Scatter(x=data["date"], y=data["ma200"], mode='lines', name='200-Day MA', line=dict(color='red')))
 
     fig.update_layout(
-        title="Candlestick Chart",
+        title="",
         xaxis_title="Date", yaxis_title="Price", xaxis_rangeslider_visible=False,
-        template="plotly_white", height=700
+        template="plotly_dark", height=700
     )
     return fig
 
-def plot_rsi_chart(data):
-    """Generate a compact RSI Chart with overbought/oversold zones."""
-    if data.empty or "rsi" not in data.columns:
-        return go.Figure()
-    
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=data["date"], y=data["rsi"], mode='lines', name='RSI', line=dict(color='purple')))
-
-    # Overbought & Oversold lines
-    fig.add_hline(y=70, line_dash="dot", line_color="red", annotation_text="Overbought", annotation_position="top right")
-    fig.add_hline(y=30, line_dash="dot", line_color="green", annotation_text="Oversold", annotation_position="bottom right")
-
-    fig.update_layout(title="RSI Indicator", xaxis_title="Date", yaxis_title="RSI", template="plotly_white", height=600)
-    return fig
-
-def plot_obv_and_volume_chart(data):
-    """Generate OBV and Volume on the same plot."""
-    if data.empty or not all(col in data.columns for col in ["date", "obv", "volume"]):
+def plot_technical_chart(data, indicator, color, title):
+    """通用技术指标绘图函数"""
+    if data.empty or indicator not in data.columns:
         return go.Figure()
 
     fig = go.Figure()
+    fig.add_trace(go.Scatter(x=data["date"], y=data[indicator], mode='lines', name=title, line=dict(color=color)))
 
-    # Plot Volume as Bars
-    fig.add_trace(go.Bar(
-        x=data["date"], y=data["volume"],
-        name="Volume", marker=dict(color="blue", opacity=0.3),
-        yaxis="y1"
-    ))
-
-    # Plot OBV as a Line
-    fig.add_trace(go.Scatter(
-        x=data["date"], y=data["obv"],
-        mode="lines", name="On-Balance Volume (OBV)",
-        line=dict(color="green"),
-        yaxis="y2"
-    ))
-
-    # Configure Dual Y-Axis
-    fig.update_layout(
-        title="OBV & Trading Volume",
-        xaxis=dict(title="Date"),
-        yaxis=dict(title="Volume", side="left", showgrid=False),
-        yaxis2=dict(title="OBV", overlaying="y", side="right", showgrid=False),
-        template="plotly_white",
-        height=600
-    )
-
+    fig.update_layout(title="", xaxis_title="Date", yaxis_title=title, template="plotly_dark", height=400)
     return fig
-
 
 def show_dashboard(ticker):
     """Display stock data in a structured layout."""
+    
+    # 重新加入 `title-text` CSS，确保标题样式生效
+    st.markdown('<h1 class="title-text">Stock Analysis Dashboard</h1>', unsafe_allow_html=True)
 
-       # Apply custom CSS to fix title cut-off issue
-    st.markdown(
-        """
-        <style>
-        .block-container {
-            padding-top: 20px !important;
-        }
-        .title-text {
-            font-size: 32px;
-            font-weight: bold;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-    st.title(f"{ticker} Stock Analysis Dashboard")
-
-    # Sidebar UI Enhancements
-    ticker = st.sidebar.text_input("Enter Stock Ticker", value=ticker).upper()
+    # Sidebar 选项
+    ticker = st.sidebar.text_input("Enter Stock Ticker", value=ticker, key="stock_ticker_input").upper()
     st.sidebar.markdown("---")
 
     show_candlestick = st.sidebar.checkbox("Show Candlestick Chart", value=True)
-    show_rsi = st.sidebar.checkbox("Show RSI Chart", value=True)
-    show_obv_volume = st.sidebar.checkbox("Show Volume Chart", value=True)
-    num_news_articles = st.sidebar.slider("Number of News Articles", 1, 20, 5)
-    num_reddit_mentions = st.sidebar.slider("Number of Reddit Mentions", 1, 20, 5)
+    indicator_options = ["RSI", "OBV", "MACD", "ADX", "Volume"]
+    selected_indicators = st.sidebar.multiselect("Select Two Indicators", indicator_options, default=["RSI", "OBV"])
+    
+    num_news_articles = st.sidebar.slider("Number of News Articles", 1, 10, 5)
+    num_reddit_mentions = st.sidebar.slider("Number of Reddit Mentions", 1, 10, 5)
 
     data = fetch_stock_data(ticker, num_news_articles, num_reddit_mentions)
 
-    # Company Fundamentals Section
+    # **⬇️ 新增 Fundamentals & Macro Data 展示**
     st.subheader("Company Fundamentals")
     st.markdown(format_fundamentals(data["fundamentals"]), unsafe_allow_html=True)
 
+    st.subheader("Macroeconomic Indicators")
+    format_macroeconomic_data(data["macro_data"])
+    
+    # **📊 主页面布局**
     col1, col2 = st.columns([7, 5])
 
     with col1:
         if show_candlestick:
             st.subheader("Candlestick Chart")
             st.plotly_chart(plot_candlestick_chart(data["technicals"]), use_container_width=True)
-        
-        rsi_col, volume_col = st.columns(2)
-        if show_rsi:
-            with rsi_col:
-                st.subheader("RSI Indicator")
-                st.plotly_chart(plot_rsi_chart(data["technicals"]), use_container_width=True)
-        
-        if show_obv_volume:
-            with volume_col:
-                st.subheader("OBV & Volume Chart")
-                st.plotly_chart(plot_obv_and_volume_chart(data["technicals"]), use_container_width=True)
 
-            
+        # **📈 显示两个选定的技术指标**
+        if len(selected_indicators) == 2:
+            st.subheader("Technical Indicators")
+            indicator1, indicator2 = selected_indicators
+            col_a, col_b = st.columns(2)
+
+            with col_a:
+                st.plotly_chart(plot_technical_chart(data["technicals"], indicator1.lower(), "purple", indicator1), use_container_width=True)
+            with col_b:
+                st.plotly_chart(plot_technical_chart(data["technicals"], indicator2.lower(), "orange", indicator2), use_container_width=True)
+
     with col2:
         st.subheader("Latest News")
         for _, row in data["news"].iterrows():
@@ -310,10 +263,6 @@ def show_dashboard(ticker):
                 """,
                 unsafe_allow_html=True
             )
-
-    st.subheader("Macroeconomic Indicators")
-    format_macroeconomic_data(data["macro_data"])
-
 
 if __name__ == "__main__":
     ticker = sys.argv[-1] if len(sys.argv) > 1 else "AAPL"
