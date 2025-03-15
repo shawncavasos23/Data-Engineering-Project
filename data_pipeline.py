@@ -2,7 +2,7 @@ import openai  # type: ignore
 import sqlite3
 import pandas as pd  # type: ignore
 from technical_analysis import run_technical_analysis
-from fundamental_analysis import run_fundamental_analysis
+from fundamental_analysis import get_fundamental_data
 from macroeconomic_analysis import fetch_economic_data
 from news_analysis import fetch_news
 from reddit_analysis import run_reddit_analysis
@@ -31,26 +31,17 @@ def update_stock_data(ticker):
         conn.close()
         return
 
-    # 🔹 **Step 1: Update Technical & Fundamental Data**
-    print(f"Running Technical Analysis for {ticker}...")
+
     run_technical_analysis(ticker)
-
-    print(f"Running Fundamental Analysis for {ticker}...")
-    run_fundamental_analysis(ticker)
-
-    print(f"Running Reddit Sentiment & Google Trends Analysis for {ticker}...")
+    get_fundamental_data(ticker)
     run_reddit_analysis(ticker)
-
-    # 🔹 **Step 2: Update Macroeconomic & News Data**
-    print("Fetching latest macroeconomic data...")
+    fetch_news(ticker)
     fetch_economic_data()
-
-    print("Fetching latest news headlines...")
-    fetch_news()
-
+    
     conn.commit()
     conn.close()
-    print(f"✅ Data updated for {ticker}.")
+    
+    print(f"Data updated for {ticker}.")
 
 def extract_existing_data(ticker):
     """
@@ -143,7 +134,7 @@ def run_analysis_and_execute_trade(ticker):
     elif "SELL" in ai_final_trading_signal:
         place_trade(ticker, "sell", 10)  # Example: Sell 10 shares
 
-    return f"✅ AI analysis complete. Trade executed if applicable."
+    return f"AI analysis complete. Trade executed if applicable."
 
 def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_data, sentiment_data, latest_economic_data, news_titles, peer_companies):
     """

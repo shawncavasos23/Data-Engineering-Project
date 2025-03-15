@@ -46,7 +46,7 @@ def get_fundamental_data(ticker):
         key_metrics = response_metrics.json()[0] if response_metrics.json() else {}
         ratios_data = response_ratios.json()[0] if response_ratios.json() else {}
 
-        # 🔹 Store fetched data
+        # Store fetched data
         store_fundamentals({
             "ticker": ticker,
             "sector": profile_data.get("sector", "Unknown"),
