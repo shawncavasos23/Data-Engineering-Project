@@ -1,72 +1,96 @@
-import praw
+import praw  # type: ignore
 import datetime
 import sqlite3
-import pandas as pd
-import matplotlib.pyplot as plt
-import nltk
-from textblob import TextBlob
-from nltk.sentiment import SentimentIntensityAnalyzer
-from pytrends.request import TrendReq
+import time
+from database import create_connection
 
-# 🔹 Reddit API Credentials
+# Reddit API Credentials
 REDDIT_CLIENT_ID = "iGbUVH-wZqqHRysT7wIEfg"
 REDDIT_CLIENT_SECRET = "iHq4HqhFESF3WiyLV6mRvCdNdKR_6Q"
 REDDIT_USER_AGENT = "RefrigeratorFew6940:WSB-Tracker:v1.0"
 
-# 🔹 Download NLTK VADER for sentiment analysis
-nltk.download("vader_lexicon")
-sia = SentimentIntensityAnalyzer()
-
-# 🔹 Connect to Reddit API
+# Connect to Reddit API
 reddit = praw.Reddit(
     client_id=REDDIT_CLIENT_ID,
     client_secret=REDDIT_CLIENT_SECRET,
     user_agent=REDDIT_USER_AGENT
 )
 
-# 🔹 Fetch Reddit Data for a Specific Stock
-def fetch_reddit_data(ticker):
+def get_recent_ticker_mentions(ticker):
+    """Fetch recent mentions of a stock ticker from WallStreetBets."""
     subreddit = reddit.subreddit("wallstreetbets")
-    five_years_ago = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=5*365)
+    mentions = []
+    
+    one_year_ago = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=365)
 
-    data = []
-    for post in subreddit.search(f"{ticker}", limit=500):  # Fetch 500 posts max
+    for post in subreddit.search(f"${ticker}", limit=1000):  # Fetch up to 1000 mentions
         post_time = datetime.datetime.fromtimestamp(post.created_utc, datetime.timezone.utc)
-        if post_time >= five_years_ago:
-            sentiment = sia.polarity_scores(post.title)["compound"]
+
+        if post_time >= one_year_ago:
             upvotes = post.score
             upvote_ratio = post.upvote_ratio
+            downvotes = int(upvotes * (1 - upvote_ratio))  
             link = "https://www.reddit.com" + post.permalink
+            content = post.selftext[:500] if post.selftext else "No content available"  # Limit content length
 
-            # 🔹 Fetch `content` (limit to 500 chars, fallback to "No content available")
-            content = post.selftext[:500] if post.selftext else "No content available"
+            mentions.append((ticker, post.title, content, upvotes, upvote_ratio, post_time, link))
 
-            data.append((ticker, post.title, content, sentiment, post_time, upvotes, upvote_ratio, link))
+    return mentions
 
-    return data
-
-# 🔹 Save Data to Database
-def save_to_database(data):
-    if not data:
-        return
-
-    conn = sqlite3.connect("trading_data.db")
+def store_reddit_mentions(ticker):
+    """Fetch and store Reddit mentions in the database while preventing duplicates."""
+    
+    conn = create_connection()
     cursor = conn.cursor()
 
-    cursor.executemany("""
-        INSERT OR IGNORE INTO reddit_mentions (ticker, title, content, sentiment, time, upvotes, upvote_ratio, link)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, data)
+    # Ensure the ticker exists in `fundamentals`
+    cursor.execute("SELECT COUNT(*) FROM fundamentals WHERE ticker = ?", (ticker,))
+    ticker_exists = cursor.fetchone()[0]
+    
+    if not ticker_exists:
+        print(f"{ticker} not found in fundamentals table. Skipping Reddit mentions.")
+        conn.close()
+        return  
 
-    conn.commit()
-    conn.close()
+    mentions = get_recent_ticker_mentions(ticker)
 
-# 🔹 Fetch and Store Data for the Imported `tickers`
-def fetch_selected_tickers():
-    for i, ticker in enumerate(tickers):
-        print(f"📡 Fetching Reddit data for {ticker} ({i+1}/{len(tickers)})...")
-        data = fetch_reddit_data(ticker)
-        save_to_database(data)
-    print("Fetch Done!")
+    if not mentions:
+        print(f"No new mentions found for {ticker}. Skipping database update.")
+        conn.close()
+        return  
 
-fetch_selected_tickers()  # Run the function to fetch data
+    try:
+        cursor.executemany("""
+            INSERT OR IGNORE INTO reddit_mentions (ticker, title, content, upvotes, upvote_ratio, date, link)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, mentions)
+
+        conn.commit()
+
+    except sqlite3.IntegrityError as e:
+        print(f"Integrity error storing Reddit mentions for {ticker}: {e}")
+
+    except Exception as e:
+        print(f"Database error storing Reddit mentions: {e}")
+
+    finally:
+        conn.close()
+
+def run_reddit_analysis(ticker):
+    """Fetch and store Reddit mentions, then return the mention count."""
+    store_reddit_mentions(ticker)
+
+    conn = create_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("SELECT COUNT(*) FROM reddit_mentions WHERE ticker = ?", (ticker,))
+        mention_count = cursor.fetchone()[0] or 0
+        return {"ticker": ticker, "reddit_mentions": mention_count}
+
+    except Exception as e:
+        print(f"Database error retrieving Reddit mentions count: {e}")
+        return {"ticker": ticker, "reddit_mentions": 0}
+
+    finally:
+        conn.close()

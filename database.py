@@ -85,20 +85,16 @@ def initialize_database():
 
         -- Reddit Mentions Table (Updated to include 'content')
         CREATE TABLE IF NOT EXISTS reddit_mentions (
-                             
-        CREATE TABLE IF NOT EXISTS reddit_mentions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ticker TEXT NOT NULL,
-            title TEXT,
-            content TEXT DEFAULT '',
-            sentiment REAL,
-            time TEXT NOT NULL,
-            upvotes INTEGER,
+            title TEXT NOT NULL,
+            content TEXT DEFAULT '',  -- Prevents KeyError
+            upvotes INTEGER DEFAULT 0,
             upvote_ratio REAL DEFAULT 0.0,
-            link TEXT,
-            UNIQUE(ticker, title, time),
+            date DATE NOT NULL DEFAULT (DATE('now')),
+            link TEXT DEFAULT '',
+            UNIQUE(ticker, title, date),
             FOREIGN KEY (ticker) REFERENCES fundamentals(ticker) ON DELETE CASCADE
-
         );
 
         -- Trade Signals Table
