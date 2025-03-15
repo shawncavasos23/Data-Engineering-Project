@@ -1,12 +1,12 @@
-import praw
+import praw # type: ignore
 import datetime
 import sqlite3
-import pandas as pd
-import matplotlib.pyplot as plt
-import nltk
-from textblob import TextBlob
-from nltk.sentiment import SentimentIntensityAnalyzer
-from pytrends.request import TrendReq
+import pandas as pd # type: ignore
+import matplotlib.pyplot as plt # type: ignore
+import nltk # type: ignore
+from textblob import TextBlob # type: ignore
+from nltk.sentiment import SentimentIntensityAnalyzer # type: ignore
+from pytrends.request import TrendReq # type: ignore
 
 # 🔹 Reddit API Credentials
 REDDIT_CLIENT_ID = "iGbUVH-wZqqHRysT7wIEfg"
@@ -63,8 +63,8 @@ def save_to_database(data):
 
 # 🔹 Fetch and Store Data for the Imported `tickers`
 def fetch_selected_tickers():
-    for i, ticker in enumerate(tickers):
-        print(f"📡 Fetching Reddit data for {ticker} ({i+1}/{len(tickers)})...")
+    for i, ticker in enumerate(ticker):
+        print(f"Fetching Reddit data for {ticker} ({i+1}/{len(ticker)})...")
         data = fetch_reddit_data(ticker)
         save_to_database(data)
     print("Fetch Done!")
