@@ -68,7 +68,7 @@ def format_fundamentals(fundamentals):
         if value is None:
             return "N/A"
         if is_currency:
-            return f"${value:,.2f}"
+            return f"${value:,.0f}"
         return f"{value:,.2f}" if isinstance(value, (int, float)) else str(value)
 
     # Define fundamentals to display
@@ -80,8 +80,13 @@ def format_fundamentals(fundamentals):
         "Return on Assets (ROA)": safe_format(row.get("roa")),
         "Return on Equity (ROE)": safe_format(row.get("roe")),
         "Beta": safe_format(row.get("beta")),
-        "Cluster": safe_format(row.get("cluster")),
-    }
+        "Dividend Per Share": safe_format(row.get("dividend_per_share"), is_currency=True),
+        "Total Debt": safe_format(row.get("total_debt"), is_currency=True),
+        "Total Cash": safe_format(row.get("total_cash"), is_currency=True),
+        "Free Cash Flow": safe_format(row.get("free_cash_flow"), is_currency=True),
+        "Operating Cash Flow": safe_format(row.get("operating_cash_flow"), is_currency=True),
+        "Net Income": safe_format(row.get("net_income"), is_currency=True),}
+
 
     # Create one column per metric dynamically
     columns = st.columns(len(fundamentals_data))

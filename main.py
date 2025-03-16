@@ -87,16 +87,12 @@ def main():
 
     # Initialize Database
     if args.command == "init":
-        print("Initializing database...")
         initialize_database()
-        print("Database initialized successfully.")
 
     # Update Data
     elif args.command == "update":
         ticker = args.ticker or DEFAULT_TICKER
-        print(f"Fetching latest data for {ticker}...")
         update_stock_data(ticker)
-        print(f"Data updated for {ticker}.")
 
     # Run AI Analysis
     elif args.command == "analyze":

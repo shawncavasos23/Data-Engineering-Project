@@ -30,8 +30,7 @@ def update_stock_data(ticker):
         print(f"⚠ {ticker} not found in database. Please add it before updating.")
         conn.close()
         return
-
-
+    
     run_technical_analysis(ticker)
     get_fundamental_data(ticker)
     run_reddit_analysis(ticker)

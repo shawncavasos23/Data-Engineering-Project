@@ -18,8 +18,10 @@ def initialize_database():
         return
 
     cursor = conn.cursor()
+    print("Initializing database...")
 
     try:
+             # Execute schema creation script
         cursor.executescript("""
         -- Fundamentals Table
         CREATE TABLE IF NOT EXISTS fundamentals (
@@ -31,6 +33,13 @@ def initialize_database():
             beta REAL DEFAULT NULL,
             roa REAL DEFAULT NULL,
             roe REAL DEFAULT NULL,
+            dividend_yield REAL DEFAULT NULL,
+            dividend_per_share REAL DEFAULT NULL,
+            total_debt BIGINT DEFAULT NULL,
+            total_cash BIGINT DEFAULT NULL,
+            free_cash_flow REAL DEFAULT NULL,
+            operating_cash_flow REAL DEFAULT NULL,
+            net_income REAL DEFAULT NULL,
             cluster INTEGER DEFAULT NULL
         );
 
@@ -70,10 +79,10 @@ def initialize_database():
             UNIQUE(indicator, date)
         );
 
-        -- News Articles Table (Stores news per ticker)
+        -- News Articles Table
         CREATE TABLE IF NOT EXISTS news (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ticker TEXT NOT NULL,  -- Ensures news is associated with the correct stock
+            ticker TEXT NOT NULL,
             source TEXT,
             title TEXT NOT NULL,
             description TEXT,
@@ -83,12 +92,12 @@ def initialize_database():
             FOREIGN KEY (ticker) REFERENCES fundamentals(ticker) ON DELETE CASCADE
         );
 
-        -- Reddit Mentions Table (Updated to include 'content')
+        -- Reddit Mentions Table
         CREATE TABLE IF NOT EXISTS reddit_mentions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ticker TEXT NOT NULL,
             title TEXT NOT NULL,
-            content TEXT DEFAULT '',  -- Prevents KeyError
+            content TEXT DEFAULT '',  
             upvotes INTEGER DEFAULT 0,
             upvote_ratio REAL DEFAULT 0.0,
             date DATE NOT NULL DEFAULT (DATE('now')),
@@ -116,8 +125,8 @@ def initialize_database():
         CREATE INDEX IF NOT EXISTS idx_signals_ticker ON trade_signals (ticker);
         CREATE INDEX IF NOT EXISTS idx_macro_indicator_date ON macroeconomic_data (indicator, date);
         """)
-        
-        # Preload 100 stock tickers with default values
+
+        # 🔹 **Preload stock tickers with default values**
         tickers = [
             "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "META", "NVDA", "NFLX", "JPM", "V",
             "BA", "IBM", "DIS", "INTC", "WMT", "KO", "PEP", "ORCL", "MCD", "NKE",
@@ -137,12 +146,16 @@ def initialize_database():
             VALUES (?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
         """, [(t,) for t in tickers])
 
+        # 🔹 **Commit changes**
         conn.commit()
+        print("Database initialized successfully.")
 
     except sqlite3.Error as e:
         print(f"SQLite Error: {e}")
+
     finally:
         conn.close()
 
-# Initialize the updated database
-initialize_database()
+# 🔹 **Initialize the database**
+if __name__ == "__main__":
+    initialize_database()
