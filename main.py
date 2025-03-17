@@ -77,7 +77,7 @@ def main():
         restart  → Restart both Producer and Consumer
         show     → Launch stock dashboard (via Streamlit)
         find_peers → Find similar stocks using clustering
-        add → Add a new stock ticker to the database"""
+        add      → Add a new stock ticker to the database"""
     )
     
     parser.add_argument(
