@@ -173,7 +173,7 @@ def run_analysis_and_execute_trade(ticker):
         body=ai_final_trading_signal
     )
 
-    # **🔹 Execute Trade Based on AI Signal**
+    # **Execute Trade Based on AI Signal**
     if "BUY" in ai_final_trading_signal:
         place_trade(ticker, "buy", 10)  # Example: Buy 10 shares
     elif "SELL" in ai_final_trading_signal:
@@ -181,17 +181,21 @@ def run_analysis_and_execute_trade(ticker):
 
     return f"AI analysis complete. Trade executed if applicable."
 
-<<<<<<< HEAD
+
+
 # Securely load OpenAI API Key
-
-
-def get_ai_full_trading_signal(ticker, db_path, macro_data, fundamental_data, technical_data, sentiment_data, latest_economic_data, news_titles):
-=======
-def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_data, sentiment_data, latest_economic_data, news_titles, peer_companies):
->>>>>>> parent of 7cb9a71 (Edit to AI Call)
+def get_ai_full_trading_signal(ticker, db_path, macro_data, fundamental_data, technical_data, sentiment_data, latest_economic_data, news_titles, peer_companies):
     """
     AI summarizes all generated insights to produce a final trading signal, target prices, and justification.
     """
+
+    # Fetch most recent closing price inline
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute("SELECT close FROM technicals WHERE ticker = ? ORDER BY date DESC LIMIT 1;", (ticker,))
+    recent_close = cursor.fetchone()
+    conn.close()
+    recent_close = recent_close[0] if recent_close else "N/A"
 
     # Format economic indicators for readability
     economic_summary = "\n".join([
@@ -205,67 +209,81 @@ def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_d
     # Format peer comparison table
     peer_table = "\n".join([f"- {peer}" for peer in peer_companies]) if peer_companies else "No peer data available."
 
-    # --- AI Prompt for Full Trading Analysis ---
-    prompt = f"""
-    You are a **quantitative financial analyst** with expertise in **macroeconomics, fundamental research, technical analysis, and behavioral finance**.
-    Your role is to generate a **professional, data-driven trading signal** based on multi-factor analysis.
+    # AI Prompt for Full Trading Analysis   
+    prompt = f"""  
+        You are a quantitative financial analyst specializing in macroeconomics, fundamental valuation, technical indicators, and behavioral finance.  
+        Your task is to generate a **data-driven trading analysis** for {ticker} using the provided database metrics.  
 
-    --- 
-    
-    ## **Stock: {ticker}**
-    
-    --- 
-    
-    ## **Macroeconomic Analysis**
-    {economic_summary}
+        Stock: {ticker}  
 
-    **Recent Macroeconomic News:**
-    {news_bullets}
+        Macroeconomic Analysis  
+        Evaluate the broader economic environment using the following indicators from the database:  
+            - Federal Funds Rate: {macro_data.get('FEDFUNDS', 'N/A')}  
+            - Inflation Rate (CPI): {macro_data.get('CPIAUCSL', 'N/A')}  
+            - Producer Price Index (PPI): {macro_data.get('PPIACO', 'N/A')}  
+            - Unemployment Rate: {macro_data.get('UNRATE', 'N/A')}  
+            - Total Nonfarm Payrolls (Employment): {macro_data.get('PAYEMS', 'N/A')}    
 
-    **AI Macro Insights:**
-    {macro_data}
+        Recent macroeconomic news headlines that may impact {ticker}:  
+        {news_bullets}  
 
-    --- 
-    
-    ## **Fundamental Analysis**
-    {fundamental_data}
+        Fundamental Analysis  
+        Assess {ticker}'s financial position using key metrics from the `fundamentals` table:  
+            - Price-to-Earnings (P/E) Ratio: {fundamental_data.get('pe_ratio', 'N/A')}  
+            - Market Capitalization: {fundamental_data.get('market_cap', 'N/A')}  
+            - Revenue: {fundamental_data.get('revenue', 'N/A')}  
+            - Beta (Volatility Measure): {fundamental_data.get('beta', 'N/A')}  
+            - Return on Assets (ROA): {fundamental_data.get('roa', 'N/A')}  
+            - Return on Equity (ROE): {fundamental_data.get('roe', 'N/A')}  
+            - Dividend Yield: {fundamental_data.get('dividend_yield', 'N/A')}  
+            - Dividend Per Share: {fundamental_data.get('dividend_per_share', 'N/A')}  
+            - Total Debt: {fundamental_data.get('total_debt', 'N/A')}  
+            - Total Cash: {fundamental_data.get('total_cash', 'N/A')}  
+            - Free Cash Flow: {fundamental_data.get('free_cash_flow', 'N/A')}  
+            - Operating Cash Flow: {fundamental_data.get('operating_cash_flow', 'N/A')}  
+            - Net Income: {fundamental_data.get('net_income', 'N/A')}  
 
-    **Peer Company Comparison:**
-    {peer_table}
+        Peer Comparison  
+        Analyze {ticker} compared to similar companies in the same sector using the clustering model:  
+        {peer_table}  
 
-    --- 
-    
-    ## **Technical Analysis**
-    {technical_data}
+        Technical Analysis  
+        Evaluate {ticker}'s price action and momentum using data from the `technicals` table:  
+            - **Most Recent Closing Price:** {recent_close}  
+            - 50-Day Moving Average: {technical_data.get('ma50', 'N/A')}  
+            - 200-Day Moving Average: {technical_data.get('ma200', 'N/A')}  
+            - MACD Value: {technical_data.get('macd', 'N/A')}  
+            - RSI (Relative Strength Index): {technical_data.get('rsi', 'N/A')}  
+            - Bollinger Bands (Upper, Lower): ({technical_data.get('upper_band', 'N/A')}, {technical_data.get('lower_band', 'N/A')})  
+            - ADX (Trend Strength): {technical_data.get('adx', 'N/A')}  
+            - On-Balance Volume (OBV): {technical_data.get('obv', 'N/A')}  
+            - Pivot Point: {technical_data.get('pivot', 'N/A')}  
+            - Resistance Level (R1): {technical_data.get('r1', 'N/A')}  
+            - Support Level (S1): {technical_data.get('s1', 'N/A')}  
 
-    --- 
-    
-    ## **Sentiment & Market Psychology**
-    {sentiment_data}
+        Sentiment Analysis  
+        Evaluate investor sentiment using data from the `news` and `reddit_mentions` tables:  
+            - Recent news sentiment based on headlines and descriptions: {sentiment_data.get('news_sentiment', 'N/A')}  
+            - Number of Reddit mentions for {ticker}: {sentiment_data.get('reddit_mentions', 'N/A')}  
+            - Average Reddit post upvote ratio: {sentiment_data.get('upvote_ratio', 'N/A')}  
 
-    --- 
-    
-    ## **Final AI-Generated Trading Strategy**
-    **Final Trading Signal:**  
-       - Should traders **BUY, SELL, or HOLD** {ticker}?  
-
-    **Price Targets:**  
-       - **BUY Target Price:** Where should traders enter?  
-       - **SELL Target Price:** Where should traders take profit?  
-       - **STOP-LOSS:** Where should traders exit if {ticker} moves against them?  
-
-    **Justification:**  
-       - Combine macroeconomic, fundamental, technical, and sentiment insights.
-       - Identify **key risks and catalysts** for {ticker} in the next 3-6 months.
+        AI-Generated Trading Strategy  
+        Based on all available data, generate a final trading signal for {ticker}:  
+            - **Trading Decision:** Should traders Buy, Sell, or Hold?  
+            - **Entry Price:** Optimal price to enter a trade  
+            - **Target Price:** Expected price level for taking profit  
+            - **Stop-Loss Level:** Risk management level to exit the trade  
+            - **Justification:** Explain the rationale using fundamental, technical, macroeconomic, and sentiment insights  
+            - **Key Risks & Catalysts:** Highlight any major risks or events that could impact {ticker} in the next three to six months  
     """
 
     try:
-        client = openai.OpenAI(api_key=api_key)
+        client = openai.OpenAI(api_key="YOUR_API_KEY")
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
-            max_tokens=1000
+            max_tokens=1500
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
