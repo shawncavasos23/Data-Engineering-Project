@@ -7,7 +7,7 @@ import time
 import psutil # type: ignore
 import atexit
 from database import initialize_database
-from data_pipeline import update_stock_data, run_analysis_and_execute_trade
+from data_pipeline import add_ticker, update_stock_data, run_analysis_and_execute_trade
 from cluster import find_peers
 
 # Default Stock Ticker
@@ -65,18 +65,19 @@ def main():
     parser = argparse.ArgumentParser(description="Trading Dashboard Controller")
 
     parser.add_argument(
-    "command",
-    choices=["init", "update", "analyze", "produce", "consume", "stop", "restart", "show", "find_peers"],
-    help="""Available commands:
-    init     → Initialize the SQLite database
-    update   → Fetch latest stock, macroeconomic data, news, and sentiment
-    analyze  → Run AI-powered analysis and execute a trade
-    produce  → Start Kafka Producer for real-time price streaming
-    consume  → Start Kafka Consumer for real-time visualization
-    stop     → Stop both Producer and Consumer
-    restart  → Restart both Producer and Consumer
-    show     → Launch stock dashboard (via Streamlit)
-    find_peers → Find similar stocks using clustering"""
+        "command",
+        choices=["init", "update", "analyze", "produce", "consume", "stop", "restart", "show", "find_peers", "add"],
+        help="""Available commands:
+        init     → Initialize the SQLite database
+        update   → Fetch latest stock, macroeconomic data, news, and sentiment
+        analyze  → Run AI-powered analysis and execute a trade
+        produce  → Start Kafka Producer for real-time price streaming
+        consume  → Start Kafka Consumer for real-time visualization
+        stop     → Stop both Producer and Consumer
+        restart  → Restart both Producer and Consumer
+        show     → Launch stock dashboard (via Streamlit)
+        find_peers → Find similar stocks using clustering
+        add → Add a new stock ticker to the database"""
     )
     
     parser.add_argument(
@@ -169,6 +170,19 @@ def main():
         ticker = args.ticker or DEFAULT_TICKER
         peers = find_peers(ticker)
         print(f"Peers for {ticker}: {', '.join(peers)}")
+
+    # Add a new stock ticker to the database
+    elif args.command == "add":
+        if not args.ticker:
+            print("Error: You must specify a ticker using --ticker.")
+            sys.exit(1)
+
+        ticker = args.ticker.upper()
+        success = add_ticker(ticker)
+        if success:
+            print(f"Ticker {ticker} added successfully.")
+       
+
 
 if __name__ == "__main__":
     main()

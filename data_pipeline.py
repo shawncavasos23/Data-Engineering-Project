@@ -13,6 +13,52 @@ from trade_execution import place_trade  # Import Alpaca trade function
 # Securely load OpenAI API Key
 api_key = "your_api_key"
 
+
+def add_ticker(ticker):
+    """Add a new ticker to all relevant tables if it doesn't already exist."""
+    conn = create_connection()
+    if conn is None:
+        print("Error: Failed to create database connection.")
+        return
+
+    cursor = conn.cursor()
+
+    try:
+        # Check if the ticker already exists in the fundamentals table
+        cursor.execute("SELECT 1 FROM fundamentals WHERE ticker = ?", (ticker,))
+        exists = cursor.fetchone()
+
+        if exists:
+            print(f"Ticker {ticker} already exists in the database.")
+        else:
+            # Add ticker to fundamentals
+            cursor.execute("""
+                INSERT INTO fundamentals (ticker, sector, pe_ratio, market_cap, revenue, beta, roa, roe, cluster) 
+                VALUES (?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+            """, (ticker,))
+
+            # Add an entry to technicals
+            cursor.execute("""
+                INSERT INTO technicals (ticker, date, open, high, low, close, adj_close, volume, ma50, ma200, macd, signal_line, rsi, upper_band, lower_band, adx, obv, pivot, r1, s1)
+                VALUES (?, DATE('now'), NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+            """, (ticker,))
+
+            # Add placeholder trade signal
+            cursor.execute("""
+                INSERT INTO trade_signals (ticker, signal, buy_price, sell_price, stop_loss, date_generated)
+                VALUES (?, 'HOLD', NULL, NULL, NULL, DATE('now'));
+            """, (ticker,))
+
+            # Commit changes
+            conn.commit()
+            print(f"Ticker {ticker} added successfully to all relevant tables.")
+
+    except sqlite3.Error as e:
+        print(f"SQLite Error: {e}")
+    
+    finally:
+        conn.close()
+
 def update_stock_data(ticker):
     """
     Fetches the latest stock, macroeconomic indicators, news, and sentiment data for a specific ticker.

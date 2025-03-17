@@ -176,7 +176,6 @@ def plot_candlestick_chart(data):
         fig.add_trace(go.Scatter(x=data["date"], y=data["ma200"], mode='lines', name='200-Day MA', line=dict(color='red')))
 
     fig.update_layout(
-        title="Candlestick Chart",
         xaxis_title="Date", yaxis_title="Price", xaxis_rangeslider_visible=False,
         template="plotly_white", height=700
     )
@@ -194,7 +193,7 @@ def plot_rsi_chart(data):
     fig.add_hline(y=70, line_dash="dot", line_color="red", annotation_text="Overbought", annotation_position="top right")
     fig.add_hline(y=30, line_dash="dot", line_color="green", annotation_text="Oversold", annotation_position="bottom right")
 
-    fig.update_layout(title="RSI Indicator", xaxis_title="Date", yaxis_title="RSI", template="plotly_white", height=600)
+    fig.update_layout(xaxis_title="Date", yaxis_title="RSI", template="plotly_white", height=600)
     return fig
 
 def plot_obv_and_volume_chart(data):
@@ -221,7 +220,6 @@ def plot_obv_and_volume_chart(data):
 
     # Configure Dual Y-Axis
     fig.update_layout(
-        title="OBV & Trading Volume",
         xaxis=dict(title="Date"),
         yaxis=dict(title="Volume", side="left", showgrid=False),
         yaxis2=dict(title="OBV", overlaying="y", side="right", showgrid=False),
@@ -231,37 +229,34 @@ def plot_obv_and_volume_chart(data):
 
     return fig
 
-
 def show_dashboard(ticker):
     """Display stock data in a structured layout."""
-
-       # Apply custom CSS to fix title cut-off issue
-    st.markdown(
-        """
-        <style>
-        .block-container {
-            padding-top: 20px !important;
-        }
-        .title-text {
-            font-size: 32px;
-            font-weight: bold;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-    st.title(f"{ticker} Stock Analysis Dashboard")
 
     # Sidebar UI Enhancements
     ticker = st.sidebar.text_input("Enter Stock Ticker", value=ticker).upper()
     st.sidebar.markdown("---")
 
-    show_candlestick = st.sidebar.checkbox("Show Candlestick Chart", value=True)
-    show_rsi = st.sidebar.checkbox("Show RSI Chart", value=True)
-    show_obv_volume = st.sidebar.checkbox("Show Volume Chart", value=True)
+    # Apply custom CSS to fix title cut-off issue
+    st.markdown(
+        f"""
+        <style>
+        .block-container {{
+            padding-top: 20px !important;
+        }}
+        .title-text {{
+            font-size: 32px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 20px;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # Dynamically update the title after sidebar input
+    st.title(f"{ticker} Stock Analysis Dashboard")
+
     num_news_articles = st.sidebar.slider("Number of News Articles", 1, 20, 5)
     num_reddit_mentions = st.sidebar.slider("Number of Reddit Mentions", 1, 20, 5)
 
@@ -274,22 +269,19 @@ def show_dashboard(ticker):
     col1, col2 = st.columns([7, 5])
 
     with col1:
-        if show_candlestick:
-            st.subheader("Candlestick Chart")
-            st.plotly_chart(plot_candlestick_chart(data["technicals"]), use_container_width=True)
-        
-        rsi_col, volume_col = st.columns(2)
-        if show_rsi:
-            with rsi_col:
-                st.subheader("RSI Indicator")
-                st.plotly_chart(plot_rsi_chart(data["technicals"]), use_container_width=True)
-        
-        if show_obv_volume:
-            with volume_col:
-                st.subheader("OBV & Volume Chart")
-                st.plotly_chart(plot_obv_and_volume_chart(data["technicals"]), use_container_width=True)
+        st.subheader("Candlestick Chart")
+        st.plotly_chart(plot_candlestick_chart(data["technicals"]), use_container_width=True, key="candlestick_chart")
 
-            
+        rsi_col, volume_col = st.columns(2)
+
+        with rsi_col:
+            st.subheader("RSI Indicator")
+            st.plotly_chart(plot_rsi_chart(data["technicals"]), use_container_width=True, key="rsi_chart")
+
+        with volume_col:
+            st.subheader("OBV & Volume Chart")
+            st.plotly_chart(plot_obv_and_volume_chart(data["technicals"]), use_container_width=True, key="obv_chart")
+    
     with col2:
         st.subheader("Latest News")
         for _, row in data["news"].iterrows():

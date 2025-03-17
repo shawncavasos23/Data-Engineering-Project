@@ -6,7 +6,7 @@ from db_utils import create_connection
 
 # List of 40 API keys
 API_KEYS = [
-    "ryvHpF6OKhRpZ4c7YJ4zBv8JD4PwcDbl"
+    "hPCjYsWS9RDgqCjJCH2mXa3CCk5LR1lu"
 ]
 
 api_key_cycle = itertools.cycle(API_KEYS)  # Rotate through API keys
