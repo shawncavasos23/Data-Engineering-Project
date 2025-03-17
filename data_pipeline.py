@@ -173,7 +173,7 @@ def run_analysis_and_execute_trade(ticker):
         body=ai_final_trading_signal
     )
 
-    # **🔹 Execute Trade Based on AI Signal**
+    # **Execute Trade Based on AI Signal**
     if "BUY" in ai_final_trading_signal:
         place_trade(ticker, "buy", 10)  # Example: Buy 10 shares
     elif "SELL" in ai_final_trading_signal:
@@ -181,19 +181,14 @@ def run_analysis_and_execute_trade(ticker):
 
     return f"AI analysis complete. Trade executed if applicable."
 
-<<<<<<< HEAD
 
 
 # Securely load OpenAI API Key
 def get_ai_full_trading_signal(ticker, db_path, macro_data, fundamental_data, technical_data, sentiment_data, latest_economic_data, news_titles, peer_companies):
-=======
-def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_data, sentiment_data, latest_economic_data, news_titles, peer_companies):
->>>>>>> parent of 7cb9a71 (Edit to AI Call)
     """
     AI summarizes all generated insights to produce a final trading signal, target prices, and justification.
     """
 
-<<<<<<< HEAD
     # Fetch most recent closing price inline
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -202,8 +197,6 @@ def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_d
     conn.close()
     recent_close = recent_close[0] if recent_close else "N/A"
 
-=======
->>>>>>> parent of 7cb9a71 (Edit to AI Call)
     # Format economic indicators for readability
     economic_summary = "\n".join([
         f"- {key}: {value:,.2f}" if isinstance(value, (int, float)) else f"- {key}: {value}"
@@ -216,7 +209,6 @@ def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_d
     # Format peer comparison table
     peer_table = "\n".join([f"- {peer}" for peer in peer_companies]) if peer_companies else "No peer data available."
 
-<<<<<<< HEAD
     # AI Prompt for Full Trading Analysis   
     prompt = f"""  
         You are a quantitative financial analyst specializing in macroeconomics, fundamental valuation, technical indicators, and behavioral finance.  
@@ -283,60 +275,6 @@ def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_d
             - **Stop-Loss Level:** Risk management level to exit the trade  
             - **Justification:** Explain the rationale using fundamental, technical, macroeconomic, and sentiment insights  
             - **Key Risks & Catalysts:** Highlight any major risks or events that could impact {ticker} in the next three to six months  
-=======
-    # --- AI Prompt for Full Trading Analysis ---
-    prompt = f"""
-    You are a **quantitative financial analyst** with expertise in **macroeconomics, fundamental research, technical analysis, and behavioral finance**.
-    Your role is to generate a **professional, data-driven trading signal** based on multi-factor analysis.
-
-    --- 
-    
-    ## **Stock: {ticker}**
-    
-    --- 
-    
-    ## **Macroeconomic Analysis**
-    {economic_summary}
-
-    **Recent Macroeconomic News:**
-    {news_bullets}
-
-    **AI Macro Insights:**
-    {macro_data}
-
-    --- 
-    
-    ## **Fundamental Analysis**
-    {fundamental_data}
-
-    **Peer Company Comparison:**
-    {peer_table}
-
-    --- 
-    
-    ## **Technical Analysis**
-    {technical_data}
-
-    --- 
-    
-    ## **Sentiment & Market Psychology**
-    {sentiment_data}
-
-    --- 
-    
-    ## **Final AI-Generated Trading Strategy**
-    **Final Trading Signal:**  
-       - Should traders **BUY, SELL, or HOLD** {ticker}?  
-
-    **Price Targets:**  
-       - **BUY Target Price:** Where should traders enter?  
-       - **SELL Target Price:** Where should traders take profit?  
-       - **STOP-LOSS:** Where should traders exit if {ticker} moves against them?  
-
-    **Justification:**  
-       - Combine macroeconomic, fundamental, technical, and sentiment insights.
-       - Identify **key risks and catalysts** for {ticker} in the next 3-6 months.
->>>>>>> parent of 7cb9a71 (Edit to AI Call)
     """
 
     try:
@@ -345,7 +283,7 @@ def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_d
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
-            max_tokens=1000
+            max_tokens=1500
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
