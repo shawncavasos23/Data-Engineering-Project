@@ -258,7 +258,7 @@ def show_dashboard(ticker):
     st.title(f"{ticker} Stock Analysis Dashboard")
 
     num_news_articles = st.sidebar.slider("Number of News Articles", 1, 10, 5)
-    num_reddit_mentions = st.sidebar.slider("Number of Reddit Mentions", 1, 10, 6)
+    num_reddit_mentions = st.sidebar.slider("Number of Reddit Mentions", 1, 10, 5)
 
     data = fetch_stock_data(ticker, num_news_articles, num_reddit_mentions)
 
