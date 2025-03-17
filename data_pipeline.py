@@ -10,6 +10,10 @@ from db_utils import create_connection
 from email_utils import send_email  # Import email function
 from trade_execution import place_trade  # Import Alpaca trade function
 
+# Securely load OpenAI API Key
+api_key = "your_api_key"
+
+
 def add_ticker(ticker):
     """Add a new ticker to all relevant tables if it doesn't already exist."""
     conn = create_connection()
@@ -55,11 +59,11 @@ def add_ticker(ticker):
     finally:
         conn.close()
 
-
 def update_stock_data(ticker):
     """
     Fetches the latest stock, macroeconomic indicators, news, and sentiment data for a specific ticker.
     """
+
     print(f"Updating data for {ticker}...")
 
     # Connect to SQLite database
@@ -69,7 +73,7 @@ def update_stock_data(ticker):
     # Ensure ticker exists in the database
     cursor.execute("SELECT COUNT(*) FROM fundamentals WHERE ticker = ?", (ticker,))
     if cursor.fetchone()[0] == 0:
-        print(f"{ticker} not found in database. Please add it before updating.")
+        print(f"⚠ {ticker} not found in database. Please add it before updating.")
         conn.close()
         return
     
@@ -139,7 +143,6 @@ def extract_existing_data(ticker):
         "peer_companies": peer_companies["ticker"].tolist()
     }
 
-
 def run_analysis_and_execute_trade(ticker):
     """
     Extracts existing financial data from the database, generates an AI-powered trading signal,
@@ -148,18 +151,17 @@ def run_analysis_and_execute_trade(ticker):
     
     print(f"Extracting existing data for {ticker}...")
     extracted_data = extract_existing_data(ticker)
-    db_path = "trading_data.db"
-    
-    # Generate AI Final Trading Signal
+
+    # 🔹 Generate AI Final Trading Signal
     ai_final_trading_signal = get_ai_full_trading_signal(
         ticker,
-        db_path,
         extracted_data["macro_data"],
         extracted_data["fundamentals"],
         extracted_data["technical_data"],
         extracted_data["sentiment_data"],
         extracted_data["macro_data"],  # Latest macroeconomic indicators
         extracted_data["news_titles"],  # Top recent news headlines
+        extracted_data["peer_companies"]  # Peer comparison data
     )
 
     print("\nAI-Generated Final Trading Signal & Price Targets:")
@@ -171,114 +173,99 @@ def run_analysis_and_execute_trade(ticker):
         body=ai_final_trading_signal
     )
 
-    # **Execute Trade Based on AI Signal**
+    # **🔹 Execute Trade Based on AI Signal**
     if "BUY" in ai_final_trading_signal:
         place_trade(ticker, "buy", 10)  # Example: Buy 10 shares
     elif "SELL" in ai_final_trading_signal:
         place_trade(ticker, "sell", 10)  # Example: Sell 10 shares
 
-    return
+    return f"AI analysis complete. Trade executed if applicable."
 
+<<<<<<< HEAD
 # Securely load OpenAI API Key
 
 
 def get_ai_full_trading_signal(ticker, db_path, macro_data, fundamental_data, technical_data, sentiment_data, latest_economic_data, news_titles):
+=======
+def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_data, sentiment_data, latest_economic_data, news_titles, peer_companies):
+>>>>>>> parent of 7cb9a71 (Edit to AI Call)
     """
     AI summarizes all generated insights to produce a final trading signal, target prices, and justification.
     """
 
-    # Fetch most recent closing price inline
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute("SELECT close FROM technicals WHERE ticker = ? ORDER BY date DESC LIMIT 1;", (ticker,))
-    recent_close = cursor.fetchone()
-    conn.close()
-    recent_close = recent_close[0] if recent_close else "N/A"
-
+    # Format economic indicators for readability
+    economic_summary = "\n".join([
+        f"- {key}: {value:,.2f}" if isinstance(value, (int, float)) else f"- {key}: {value}"
+        for key, value in latest_economic_data.items()
+    ])
 
     # Format news headlines
     news_bullets = "\n".join([f"- {title}" for title in news_titles])
 
+    # Format peer comparison table
+    peer_table = "\n".join([f"- {peer}" for peer in peer_companies]) if peer_companies else "No peer data available."
 
-    # AI Prompt for Full Trading Analysis   
-    prompt = f"""  
-        You are a quantitative financial analyst specializing in macroeconomics, fundamental valuation, technical indicators, and behavioral finance.  
-        Your task is to generate a **data-driven trading analysis** for {ticker} using the provided database metrics.  
+    # --- AI Prompt for Full Trading Analysis ---
+    prompt = f"""
+    You are a **quantitative financial analyst** with expertise in **macroeconomics, fundamental research, technical analysis, and behavioral finance**.
+    Your role is to generate a **professional, data-driven trading signal** based on multi-factor analysis.
 
-        Stock: {ticker}  
-
-        Macroeconomic Analysis  
-        Evaluate the broader economic environment using the following indicators from the database:  
-            - Federal Funds Rate: {macro_data.get('FEDFUNDS', 'N/A')}  
-            - Inflation Rate (CPI): {macro_data.get('CPIAUCSL', 'N/A')}  
-            - Producer Price Index (PPI): {macro_data.get('PPIACO', 'N/A')}  
-            - Unemployment Rate: {macro_data.get('UNRATE', 'N/A')}  
-            - Total Nonfarm Payrolls (Employment): {macro_data.get('PAYEMS', 'N/A')}    
-
-        Recent macroeconomic news headlines that may impact {ticker}:  
-        {news_bullets}  
-
-        Fundamental Analysis  
-        Assess {ticker}'s financial position using key metrics from the `fundamentals` table:  
-            - Price-to-Earnings (P/E) Ratio: {fundamental_data.get('pe_ratio', 'N/A')}  
-            - Market Capitalization: {fundamental_data.get('market_cap', 'N/A')}  
-            - Revenue: {fundamental_data.get('revenue', 'N/A')}  
-            - Beta (Volatility Measure): {fundamental_data.get('beta', 'N/A')}  
-            - Return on Assets (ROA): {fundamental_data.get('roa', 'N/A')}  
-            - Return on Equity (ROE): {fundamental_data.get('roe', 'N/A')}  
-            - Dividend Yield: {fundamental_data.get('dividend_yield', 'N/A')}  
-            - Dividend Per Share: {fundamental_data.get('dividend_per_share', 'N/A')}  
-            - Total Debt: {fundamental_data.get('total_debt', 'N/A')}  
-            - Total Cash: {fundamental_data.get('total_cash', 'N/A')}  
-            - Free Cash Flow: {fundamental_data.get('free_cash_flow', 'N/A')}  
-            - Operating Cash Flow: {fundamental_data.get('operating_cash_flow', 'N/A')}  
-            - Net Income: {fundamental_data.get('net_income', 'N/A')}  
-
-
-        Technical Analysis  
-        Evaluate {ticker}'s price action and momentum using data from the `technicals` table:  
-            - **Most Recent Closing Price:** {recent_close}  
-            - 50-Day Moving Average: {technical_data.get('ma50', 'N/A')}  
-            - 200-Day Moving Average: {technical_data.get('ma200', 'N/A')}  
-            - MACD Value: {technical_data.get('macd', 'N/A')}  
-            - RSI (Relative Strength Index): {technical_data.get('rsi', 'N/A')}  
-            - Bollinger Bands (Upper, Lower): ({technical_data.get('upper_band', 'N/A')}, {technical_data.get('lower_band', 'N/A')})  
-            - ADX (Trend Strength): {technical_data.get('adx', 'N/A')}  
-            - On-Balance Volume (OBV): {technical_data.get('obv', 'N/A')}  
-            - Pivot Point: {technical_data.get('pivot', 'N/A')}  
-            - Resistance Level (R1): {technical_data.get('r1', 'N/A')}  
-            - Support Level (S1): {technical_data.get('s1', 'N/A')}  
-
-        Sentiment Analysis  
-        Evaluate investor sentiment using data from the `news` and `reddit_mentions` tables:  
-            - Recent news sentiment based on headlines and descriptions: {sentiment_data.get('news_sentiment', 'N/A')}  
-            - Number of Reddit mentions for {ticker}: {sentiment_data.get('reddit_mentions', 'N/A')}  
-            - Average Reddit post upvote ratio: {sentiment_data.get('upvote_ratio', 'N/A')}  
-
-        If any data is missing (shown as 'N/A'), you must still generate a well-reasoned estimate based on industry trends, sector performance, and historical patterns.  
-
-        ### AI-Generated Final Trading Signal & Price Targets:
-            - **Trading Decision:** Should traders Buy, Sell, or Hold?
-            - **Entry Price:** Optimal price to enter a trade (**MUST provide an estimate if data is missing**)
-            - **Target Price:** Expected price level for taking profit (**MUST provide an estimate if data is missing**)
-            - **Stop-Loss Level:** Risk management level to exit the trade (**MUST provide an estimate if data is missing**)
-            - **Justification:** Explain the rationale using fundamental, technical, macroeconomic, and sentiment insights  
-            - **Key Risks & Catalysts:** Highlight any major risks or events that could impact {ticker} in the next three to six months  
-
-        **IMPORTANT:**  
-            - If stock is in a strong downtrend, provide a **short-selling** trade setup with stop-loss and take-profit levels.  
-            - If technical analysis suggests a rebound, provide a long trade setup.  
-            - If data is missing, use historical price trends and sector averages to **estimate** price targets.  
-            - **Never return "N/A" for entry, target, or stop-loss levels.** Provide the best estimate based on market conditions.  
-    """
+    --- 
     
+    ## **Stock: {ticker}**
+    
+    --- 
+    
+    ## **Macroeconomic Analysis**
+    {economic_summary}
+
+    **Recent Macroeconomic News:**
+    {news_bullets}
+
+    **AI Macro Insights:**
+    {macro_data}
+
+    --- 
+    
+    ## **Fundamental Analysis**
+    {fundamental_data}
+
+    **Peer Company Comparison:**
+    {peer_table}
+
+    --- 
+    
+    ## **Technical Analysis**
+    {technical_data}
+
+    --- 
+    
+    ## **Sentiment & Market Psychology**
+    {sentiment_data}
+
+    --- 
+    
+    ## **Final AI-Generated Trading Strategy**
+    **Final Trading Signal:**  
+       - Should traders **BUY, SELL, or HOLD** {ticker}?  
+
+    **Price Targets:**  
+       - **BUY Target Price:** Where should traders enter?  
+       - **SELL Target Price:** Where should traders take profit?  
+       - **STOP-LOSS:** Where should traders exit if {ticker} moves against them?  
+
+    **Justification:**  
+       - Combine macroeconomic, fundamental, technical, and sentiment insights.
+       - Identify **key risks and catalysts** for {ticker} in the next 3-6 months.
+    """
+
     try:
         client = openai.OpenAI(api_key=api_key)
         response = client.chat.completions.create(
-            model="gpt-4-turbo",
+            model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
-            max_tokens=1500
+            max_tokens=1000
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
