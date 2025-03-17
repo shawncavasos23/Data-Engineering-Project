@@ -183,10 +183,14 @@ def run_analysis_and_execute_trade(ticker):
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 # Securely load OpenAI API Ke
 
 
 def get_ai_full_trading_signal(ticker, db_path, macro_data, fundamental_data, technical_data, sentiment_data, latest_economic_data, news_titles):
+=======
+def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_data, sentiment_data, latest_economic_data, news_titles, peer_companies):
+>>>>>>> parent of 7cb9a71 (Edit to AI Call)
 =======
 def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_data, sentiment_data, latest_economic_data, news_titles, peer_companies):
 >>>>>>> parent of 7cb9a71 (Edit to AI Call)
@@ -216,9 +220,15 @@ def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_d
 
     --- 
 <<<<<<< HEAD
+<<<<<<< HEAD
     
     ## **Stock: {ticker}**
     
+=======
+    
+    ## **Stock: {ticker}**
+    
+>>>>>>> parent of 7cb9a71 (Edit to AI Call)
 =======
     
     ## **Stock: {ticker}**
