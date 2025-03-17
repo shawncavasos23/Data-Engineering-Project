@@ -1,10 +1,15 @@
-import requests  # type: ignore
-import time
+import requests
 import sqlite3
+import itertools
 from db_utils import create_connection
 
-API_KEY = "ryvHpF6OKhRpZ4c7YJ4zBv8JD4PwcDbl"
 
+# List of 40 API keys
+API_KEYS = [
+    "ryvHpF6OKhRpZ4c7YJ4zBv8JD4PwcDbl"
+]
+
+api_key_cycle = itertools.cycle(API_KEYS)  # Rotate through API keys
 
 def get_fundamental_data(ticker):
     """Fetch fundamental financial data for a stock and store it in SQLite."""
@@ -20,10 +25,10 @@ def get_fundamental_data(ticker):
 
     if data_exists:
         conn.close()
-        return  # Prevents API call if data already exists
+        return  # Prevent API call if data already exists
 
     conn.close()
-    
+
     base_url = "https://financialmodelingprep.com/api/v3/"
     endpoints = {
         "profile": f"profile/{ticker}",
@@ -37,11 +42,21 @@ def get_fundamental_data(ticker):
     try:
         data = {}
         for key, endpoint in endpoints.items():
-            url = f"{base_url}{endpoint}?apikey={API_KEY}"
-            response = requests.get(url)
-            response.raise_for_status()
-            json_data = response.json()
-            data[key] = json_data[0] if isinstance(json_data, list) and json_data else {}
+            success = False
+            while not success:
+                api_key = next(api_key_cycle)  # Get next API key
+                url = f"{base_url}{endpoint}?apikey={api_key}"
+                
+                response = requests.get(url)
+                
+                if response.status_code == 429:  # Too many requests
+                    print(f"Rate limit exceeded for {api_key}, switching API key...")
+                    continue  # Try the next API key
+                
+                response.raise_for_status()
+                json_data = response.json()
+                data[key] = json_data[0] if isinstance(json_data, list) and json_data else {}
+                success = True  # Exit loop once successful response is received
 
         # Extract relevant metrics
         metrics = {
