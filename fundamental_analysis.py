@@ -1,7 +1,7 @@
 import requests  # type: ignore
 import time
 import sqlite3
-from database import create_connection
+from db_utils import create_connection
 
 API_KEY = "ryvHpF6OKhRpZ4c7YJ4zBv8JD4PwcDbl"
 
@@ -19,7 +19,6 @@ def get_fundamental_data(ticker):
     data_exists = cursor.fetchone()[0]
 
     if data_exists:
-        print(f"Fundamentals already exist for {ticker}. Skipping API call.")
         conn.close()
         return  # Prevents API call if data already exists
 
@@ -64,7 +63,6 @@ def get_fundamental_data(ticker):
         }
 
         store_fundamentals(metrics)
-        print(f"Retrieved and stored fundamentals for {ticker}")
     
     except requests.exceptions.RequestException as e:
         print(f"Error fetching fundamental data for {ticker}: {e}")

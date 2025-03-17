@@ -8,6 +8,7 @@ import psutil # type: ignore
 import atexit
 from database import initialize_database
 from data_pipeline import update_stock_data, run_analysis_and_execute_trade
+from cluster import find_peers
 
 # Default Stock Ticker
 DEFAULT_TICKER = "AAPL"
@@ -64,17 +65,18 @@ def main():
     parser = argparse.ArgumentParser(description="Trading Dashboard Controller")
 
     parser.add_argument(
-        "command",
-        choices=["init", "update", "analyze", "produce", "consume", "stop", "restart", "show"],
-        help="""Available commands:
-        init     → Initialize the SQLite database
-        update   → Fetch latest stock, macroeconomic data, news, and sentiment
-        analyze  → Run AI-powered analysis and execute a trade
-        produce  → Start Kafka Producer for real-time price streaming
-        consume  → Start Kafka Consumer for real-time visualization
-        stop     → Stop both Producer and Consumer
-        restart  → Restart both Producer and Consumer
-        show     → Launch stock dashboard (via Streamlit)"""
+    "command",
+    choices=["init", "update", "analyze", "produce", "consume", "stop", "restart", "show", "find_peers"],
+    help="""Available commands:
+    init     → Initialize the SQLite database
+    update   → Fetch latest stock, macroeconomic data, news, and sentiment
+    analyze  → Run AI-powered analysis and execute a trade
+    produce  → Start Kafka Producer for real-time price streaming
+    consume  → Start Kafka Consumer for real-time visualization
+    stop     → Stop both Producer and Consumer
+    restart  → Restart both Producer and Consumer
+    show     → Launch stock dashboard (via Streamlit)
+    find_peers → Find similar stocks using clustering"""
     )
     
     parser.add_argument(
@@ -163,6 +165,10 @@ def main():
         except FileNotFoundError:
             print("Error: Streamlit is not installed or stock_dashboard.py is missing.")
 
+    elif args.command == "find_peers":
+        ticker = args.ticker or DEFAULT_TICKER
+        peers = find_peers(ticker)
+        print(f"Peers for {ticker}: {', '.join(peers)}")
 
 if __name__ == "__main__":
     main()

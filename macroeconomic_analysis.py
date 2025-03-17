@@ -3,7 +3,7 @@ import sqlite3
 import datetime
 import pandas as pd  # type: ignore
 import time
-from database import create_connection
+from db_utils import create_connection
 
 # Define Date Range
 start = datetime.datetime(2020, 1, 1)

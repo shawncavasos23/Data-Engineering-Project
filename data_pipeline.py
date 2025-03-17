@@ -6,7 +6,7 @@ from fundamental_analysis import get_fundamental_data
 from macroeconomic_analysis import fetch_economic_data
 from news_analysis import fetch_news
 from reddit_analysis import run_reddit_analysis
-from database import create_connection
+from db_utils import create_connection
 from email_utils import send_email  # Import email function
 from trade_execution import place_trade  # Import Alpaca trade function
 
@@ -82,7 +82,7 @@ def extract_existing_data(ticker):
 
     # Extract Sentiment Data (Reddit Mentions & Google Trends)
     sentiment_query = """
-    SELECT * FROM reddit_mentions WHERE ticker = ? ORDER BY date DESC LIMIT 1
+    SELECT * FROM reddit_mentions WHERE ticker = ? ORDER BY date DESC LIMIT 5
     """
     sentiment_data = pd.read_sql(sentiment_query, conn, params=(ticker,))
 

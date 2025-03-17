@@ -1,14 +1,18 @@
 import sqlite3
+from data_pipeline import update_stock_data
+from db_utils import create_connection
 
-def create_connection():
-    """Create or connect to the SQLite database with foreign keys enabled."""
-    try:
-        conn = sqlite3.connect("trading_data.db")
-        conn.execute("PRAGMA foreign_keys = ON;")  # Enforce foreign key constraints
-        return conn
-    except sqlite3.Error as e:
-        print(f"SQLite Error: {e}")
-        return None
+def get_all_tickers():
+    """Retrieve all tickers from the database."""
+    conn = create_connection()
+    if conn is None:
+        return []
+    
+    cursor = conn.cursor()
+    cursor.execute("SELECT ticker FROM fundamentals")
+    tickers = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return tickers
 
 def initialize_database():
     """Creates tables and ensures schema is correct."""
@@ -126,19 +130,43 @@ def initialize_database():
         CREATE INDEX IF NOT EXISTS idx_macro_indicator_date ON macroeconomic_data (indicator, date);
         """)
 
-        # 🔹 **Preload stock tickers with default values**
+        # **Preload stock tickers with default values**
         tickers = [
-            "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "META", "NVDA", "NFLX", "JPM", "V",
-            "BA", "IBM", "DIS", "INTC", "WMT", "KO", "PEP", "ORCL", "MCD", "NKE",
-            "CVX", "XOM", "PFE", "UNH", "ABT", "AXP", "CAT", "RTX", "GS", "HD",
-            "PG", "SPG", "LMT", "MMM", "BMY", "MDT", "DHR", "GE", "LUV", "CSCO",
-            "SCHW", "COST", "TMO", "VZ", "ADBE", "CVS", "SYK", "SBUX", "TRV",
-            "AMT", "MO", "BAX", "T", "LRCX", "CTSH", "ISRG", "UAL", "AMGN", "REGN",
-            "CSX", "GILD", "FISV", "EQIX", "F", "ZM", "MRK", "ZTS", "VLO", "AIG",
-            "SCHW", "HCA", "MS", "KHC", "COP", "WM", "CCI", "DOW", "TGT", "STT",
-            "BK", "CME", "WFC", "MCK", "HUM", "CTVA", "ALL", "ICE", "MA", "CHTR",
-            "AMAT", "ADI", "WDC", "BKR", "NSC", "STZ", "APD", "DLR", "NOC", "CSGP",
-            "NEM", "FIS", "CTXS", "LVS", "EXPE", "USB", "PGR", "TFX", "MAR", "RSG"
+        "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "META", "NVDA", "NFLX", "JPM", "V",
+        "BA", "IBM", "DIS", "INTC", "WMT", "KO", "PEP", "ORCL", "MCD", "NKE",
+        "CVX", "XOM", "PFE", "UNH", "ABT", "AXP", "CAT", "RTX", "GS", "HD",
+        "PG", "SPG", "LMT", "MMM", "BMY", "MDT", "DHR", "GE", "LUV", "CSCO",
+        "SCHW", "COST", "TMO", "VZ", "ADBE", "CVS", "SYK", "SBUX", "TRV",
+        "AMT", "MO", "BAX", "T", "LRCX", "CTSH", "ISRG", "UAL", "AMGN", "REGN",
+        "CSX", "GILD", "FISV", "EQIX", "F", "ZM", "MRK", "ZTS", "VLO", "AIG",
+        "HCA", "MS", "KHC", "COP", "WM", "CCI", "DOW", "TGT", "STT",
+        "BK", "CME", "WFC", "MCK", "HUM", "CTVA", "ALL", "ICE", "MA", "CHTR",
+        "AMAT", "ADI", "WDC", "BKR", "NSC", "STZ", "APD", "DLR", "NOC", "CSGP",
+        "NEM", "FIS", "CTXS", "LVS", "EXPE", "USB", "PGR", "TFX", "MAR", "RSG",
+        "CAG", "ALB", "LEN", "AEP", "PSA", "EOG", "ED", "ECL", "ROP", "WMB",
+        "ETN", "ITW", "DUK", "SRE", "NUE", "OXY", "CNC", "PRU", "MET", "HLT",
+        "VTRS", "FMC", "XEL", "EMN", "MKC", "TXT", "HST", "KEYS", "CE", "CINF",
+        "CNP", "EXR", "CMA", "HII", "KMI", "EVRG", "ATO", "LDOS", "FRT", "HAS",
+        "WHR", "ZION", "DVA", "NI", "AKAM", "PNR", "J", "PWR", "NVR", "ATO",
+        "ROL", "BWA", "CDW", "NWL", "BEN", "RE", "LYB", "PKI", "VFC", "RJF",
+        "CF", "CBOE", "HSIC", "LNT", "MAS", "GL", "WAB", "NDSN", "REG", "SEE",
+        "BXP", "TYL", "JKHY", "UHS", "PENN", "JCI", "LNC", "RHI", "VMC", "CPT",
+        "ALLE", "FBHS", "CLX", "LW", "OGN", "TSCO", "PFG", "DOV", "PH", "MSI",
+        "IPG", "PNW", "FOXA", "K", "FLT", "NCLH", "DXC", "FFIV", "HRL", "OMC",
+        "AAP", "EXPD", "CZR", "HWM", "NWSA", "CTLT", "IRM", "GNRC", "LEG", "DXCM",
+        "EPAM", "POOL", "BIO", "QRVO", "FLS", "MHK", "MPWR", "HOLX", "HUBB", "GRMN",
+        "TRMB", "PODD", "VAR", "NDSN", "LKQ", "WRB", "CCL", "ROL", "TFX", "MOH",
+        "TAP", "HST", "VTR", "AOS", "MTD", "AAL", "BR", "LUMN", "PWR", "HIG",
+        "TXT", "OGS", "SIVB", "IEX", "MTB", "SWK", "TROW", "CDK", "GLW", "XYL",
+        "AEE", "L", "AVY", "AIV", "EIX", "PNR", "ATO", "STLD", "NDAQ", "IP",
+        "PPG", "CMS", "AVB", "CTVA", "HAS", "RHI", "EXPE", "A", "FRC", "GWW",
+        "DRE", "AMP", "NLOK", "ES", "AFL", "FISV", "FMC", "TDG", "ZBRA", "KEY",
+        "MTN", "HPE", "WEC", "SNA", "HES", "VTR", "CBRE", "PEAK", "WBA", "DISCA",
+        "EQR", "TTWO", "EXPD", "MOS", "BAX", "RCL", "HST", "OMC", "PBCT", "AIZ",
+        "FOX", "UAA", "ALK", "IPGP", "WY", "ULTA", "SEE", "PKG", "TXT", "LNC",
+        "NWL", "LEG", "HII", "PNC", "ANET", "L", "RE", "PNW", "DOV", "CE",
+        "AKAM", "IFF", "MKC", "NDSN", "MTB", "KIM", "NVR", "IVZ", "PWR", "UHS",
+        "FRT", "ETR", "CINF", "FLT", "MHK", "CLX", "RJF", "ALLE", "NDAQ", "TYL"
         ]
 
         cursor.executemany("""
@@ -155,6 +183,13 @@ def initialize_database():
 
     finally:
         conn.close()
+    
+    # Prompt user to fetch stock data
+    fetch_data = input("Initialize database and fetch stock data now? (y/n): ").strip().lower()
+    if fetch_data == "y":
+        tickers = get_all_tickers()
+        for ticker in tickers:
+            update_stock_data(ticker)
 
 # 🔹 **Initialize the database**
 if __name__ == "__main__":

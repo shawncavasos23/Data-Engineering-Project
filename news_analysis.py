@@ -84,7 +84,6 @@ def fetch_news(ticker, limit=10):
                 VALUES (?, ?, ?, ?, ?, ?)
             """, new_articles)
             conn.commit()
-            print(f"Stored {len(new_articles)} Google News articles for {ticker}.")
 
     except Exception as e:
         print(f"Error fetching news from Google RSS for {ticker}: {e}")

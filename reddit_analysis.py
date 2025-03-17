@@ -2,7 +2,7 @@ import praw  # type: ignore
 import datetime
 import sqlite3
 import time
-from database import create_connection
+from db_utils import create_connection
 
 # Reddit API Credentials
 REDDIT_CLIENT_ID = "iGbUVH-wZqqHRysT7wIEfg"
