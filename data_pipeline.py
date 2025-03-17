@@ -180,7 +180,6 @@ def run_analysis_and_execute_trade(ticker):
     return
 
 # Securely load OpenAI API Key
-api_key = "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"
 
 
 def get_ai_full_trading_signal(ticker, db_path, macro_data, fundamental_data, technical_data, sentiment_data, latest_economic_data, news_titles):
