@@ -4,7 +4,7 @@ import numpy as np  # type: ignore
 import sqlite3
 from db_utils import create_connection
 
-API_KEY = " 67c1133a5815d0.62294566"
+API_KEY = " 67d7d8e193a3a4.14897669"
 
 def get_stock_data(symbol, exchange="US", interval="daily", output_size="full"):
     """Fetch historical stock data from the API."""
