@@ -3,10 +3,18 @@ import sqlite3
 import itertools
 from db_utils import create_connection
 
-
-# List of 40 API keys
 API_KEYS = [
-    "hPCjYsWS9RDgqCjJCH2mXa3CCk5LR1lu"
+    "rEwY9uKTA66xG5uK8CAifKsu9tSAzuHd", "6hY6I1N27gM7IE4suNpVNaUHxBeZw6yc",
+    "oFLf4RZvkY3ksOBQ71PM39Cv84WOqqyV", "ug8ggu6nmS3NV6CAjIHD0k1YDeaTIk3w",
+    "QaJCrea0m0Jw3X5xNID0b1KKOg3dPUrX", "fMFlUxLxqKwq6qHuYJ9YBIBxwy8drfZM",
+    "ujyGSVIOvjWkHMygBvlLziESGhxiUoaG", "CCzHGrEB1dVVVkw11xxwZb6o0UeUu3Yh",
+    "pgGOVJAlfchwFlvfcuuAqMukqbPIPK2a", "c8DQ6I283ArGIPx2fxxzG5NOECdB0AzM",
+    "h3WqRv1L1aDOlqjTJSOSyTuQOgav3lFZ", "iUwc8g8lNedeWfEg1NwUnvXGM4iIL3ps",
+    "cDWmTbAqq82eINliWSFxn4yVv1GbseJH", "IMgmBYeGkVlNgAwdP5xWXqbMNNEewnHl",
+    "oDjz2EDlkZhIbdN18m1yOfDxSZkC7i31", "v1s0mDIr0tBLQJi9tf5aHYv6Iqn9EphC",
+    "3f08L5h73zYFlEEtw1pg5JKC8qdR7nAR", "rXR0PrHyt4Vcdn1yqWhklKNSZfdGV9qU",
+    "EtzquuX82cOSuWHSTqLfS2aP1D3uhLaT", "VrIWXD4KjvZ07IdwmyD81SDJzAjydQtr",
+    "WhuS8fEd9aOh7edtwjUBHhznNdc0fdwx", "hPCjYsWS9RDgqCjJCH2mXa3CCk5LR1lu"
 ]
 
 api_key_cycle = itertools.cycle(API_KEYS)  # Rotate through API keys
