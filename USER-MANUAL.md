@@ -2,19 +2,19 @@
 
 ## 1. Overview
 
-This AI-powered trading system is a comprehensive solution that integrates multiple dimensions of financial data to support informed decision-making in the equity markets. It leverages large language models (LLMs) for analysis and integrates with modern data engineering tools for data ingestion, processing, and visualization.
+The AI Trading System is a comprehensive, modular solution for generating data-driven stock trading signals using artificial intelligence. It integrates structured and unstructured financial data and applies a large language model (LLM) to perform context-aware analysis. Built for swing trading of S&P 500 stocks, the system supports real-time streaming, automated email alerts, and peer clustering analysis.
 
 The system incorporates:
 
-- Fundamental analysis
-- Technical indicators
-- Macroeconomic context
-- Sentiment analysis from news and Reddit
-- Clustering-based peer comparisons
-- Real-time price streaming
-- Automated AI signal generation and trade execution
+- **Fundamental analysis** (e.g., P/E ratio, ROE, market cap)
+- **Technical indicators** (e.g., RSI, MACD, moving averages)
+- **Macroeconomic data** (e.g., inflation, interest rates, employment)
+- **Sentiment analysis** from news headlines and Reddit
+- **Peer clustering** using financial and sector-based attributes
+- **Real-time stock price streaming** via Kafka
+- **AI-generated trade decisions** and optional automated trade execution
 
-Designed primarily for swing trading of S&P 500 stocks, it is easily extensible to other equities.
+This tool can be extended to any equity universe and scaled for more frequent trading strategies if needed.
 
 ---
 
@@ -23,7 +23,7 @@ Designed primarily for swing trading of S&P 500 stocks, it is easily extensible 
 - Python 3.9 or later  
 - SQLite (included with Python)  
 - Apache Kafka and Zookeeper  
-- Required Python packages:
+- Install Python dependencies:
 
 ```bash
 pip install -r requirements.txt
@@ -33,7 +33,7 @@ pip install -r requirements.txt
 
 ## 3. Environment Variables
 
-Set these either in your shell or via a `.env` file:
+Set the following environment variables in your shell or in a `.env` file in the project root:
 
 ```bash
 OPENAI_API_KEY=your_openai_api_key
@@ -41,25 +41,25 @@ EMAIL_USER=youremail@gmail.com
 EMAIL_PASS=your_app_password
 ```
 
-These are required for GPT-powered trading signals and for email notifications.
+These are required for GPT-based signal generation and email functionality.
 
 ---
 
 ## 4. Initial Setup
 
-Run this command to set up the database and preload tickers:
+Run this to initialize the database schema and preload a list of tickers:
 
 ```bash
 python main.py init --auto
 ```
 
-This creates a local `trading_data.db` SQLite database with all required tables and inserts a default list of S&P 500 tickers.
+This creates the `trading_data.db` SQLite file with all necessary tables.
 
 ---
 
 ## 5. Command Reference
 
-The general command format is:
+General format:
 
 ```bash
 python main.py <command> [--ticker TICKER] [--auto] [--email]
@@ -67,24 +67,24 @@ python main.py <command> [--ticker TICKER] [--auto] [--email]
 
 ### Command Descriptions
 
-| Command        | Description                                              |
-|----------------|----------------------------------------------------------|
-| `init`         | Initializes the database schema and preloads tickers     |
-| `update`       | Fetches latest data for a ticker                         |
-| `analyze`      | Runs AI-powered trading signal analysis                  |
-| `add`          | Adds a new ticker to the database                        |
-| `produce`      | Starts Kafka producer for real-time price streaming      |
-| `consume`      | Starts Kafka consumer to display live price data         |
-| `stop`         | Stops active producer and consumer processes             |
-| `restart`      | Restarts streaming for a specific ticker                 |
-| `show`         | Launches the Streamlit dashboard                         |
-| `find_peers`   | Lists peer stocks based on clustering                    |
+| Command        | Description                                                  |
+|----------------|--------------------------------------------------------------|
+| `init`         | Creates the database schema and inserts tickers              |
+| `update`       | Fetches the latest fundamental, technical, macro, and sentiment data for a ticker |
+| `analyze`      | Runs the AI signal pipeline and optionally sends an email    |
+| `add`          | Adds a new ticker to the database                            |
+| `produce`      | Starts Kafka producer to stream live prices                  |
+| `consume`      | Starts Kafka consumer to receive and display live prices     |
+| `stop`         | Stops all producer/consumer processes                        |
+| `restart`      | Restarts producer/consumer for the specified ticker          |
+| `show`         | Launches the Streamlit dashboard                             |
+| `find_peers`   | Displays stocks clustered in the same group as the ticker    |
 
 ---
 
 ## 6. Typical Workflows
 
-### Add, Update, and Analyze a New Ticker
+### Add, Update, and Analyze a Ticker
 
 ```bash
 python main.py add --ticker MSFT
@@ -102,74 +102,62 @@ cd C:\Users\<YourUsername>\Documents\GitHub\Data-Engineering-Project
 python main.py analyze --ticker AAPL --email
 ```
 
-2. Open **Task Scheduler**, create a new task:
-   - Trigger: **Daily at 1:00 PM**
-   - Action: Run your `.bat` file
-   - Settings: Run with highest privileges
+2. Open **Task Scheduler**:
+   - **Trigger**: Daily at 1:00 PM  
+   - **Action**: Start a program → point to the `.bat` file  
+   - **Settings**: Run with highest privileges
 
-This schedules the system to generate and email a trading signal daily at 1 PM.
+This setup will run your AI analysis and email the trading signal each day at 1 PM.
 
 ---
 
 ## 7. Real-Time Streaming with Kafka
 
-Kafka is used to stream and consume real-time stock prices.
+Kafka is used to stream 1-minute price data for selected tickers.
 
 ### Download and Setup
 
-Download Kafka: https://kafka.apache.org/downloads  
+Download Kafka from: https://kafka.apache.org/downloads  
 Unzip to a folder such as `C:\kafka` or `~/kafka`
 
-### Starting Zookeeper and Kafka
+### Start Zookeeper and Kafka Servers
 
-#### Windows
-
-Start Zookeeper:
+#### On Windows:
 
 ```bash
 cd C:\kafka
 bin\windows\zookeeper-server-start.bat config\zookeeper.properties
-```
 
-Start Kafka:
-
-```bash
 cd C:\kafka
 bin\windows\kafka-server-start.bat config\server.properties
 ```
 
-#### macOS/Linux
-
-Start Zookeeper:
+#### On macOS/Linux:
 
 ```bash
 cd ~/kafka
 bin/zookeeper-server-start.sh config/zookeeper.properties
-```
 
-Start Kafka:
-
-```bash
 cd ~/kafka
 bin/kafka-server-start.sh config/server.properties
 ```
 
-### Starting the Producer and Consumer
+### Start Producer and Consumer
+
+Run in separate terminals:
 
 ```bash
 python main.py produce --ticker AAPL
 python main.py consume --ticker AAPL
 ```
 
-These should be run in separate terminals.
-
-### Stopping Streaming
+### Stop All Kafka Processes
 
 ```bash
 python main.py stop
 ```
 
-### Restarting Streaming
+### Restart Producer and Consumer
 
 ```bash
 python main.py restart --ticker AAPL
@@ -179,47 +167,87 @@ python main.py restart --ticker AAPL
 
 ## 8. Email Alerts
 
-To receive trading signals via email:
+To send a trading signal via email:
 
 ```bash
 python main.py analyze --ticker AAPL --email
 ```
 
-This uses the SMTP credentials configured in your environment.
+This uses the configured `EMAIL_USER` and `EMAIL_PASS` credentials.
 
 ---
 
 ## 9. Data Sources
 
-| Type             | Source                                |
+| Data Type        | Source                                |
 |------------------|----------------------------------------|
-| Technical Data   | yfinance                               |
-| Fundamentals     | Alpha Vantage / FinancialModelingPrep |
-| Macro Indicators | FRED (Federal Reserve)                |
-| News             | NewsAPI / scraping                     |
-| Sentiment        | Reddit API / scraping                  |
+| Technical Data   | `yfinance`                             |
+| Fundamentals     | Alpha Vantage / FinancialModelingPrep  |
+| Macroeconomics   | FRED (Federal Reserve Economic Data)   |
+| News Headlines   | NewsAPI or custom scraper              |
+| Reddit Sentiment | Reddit API or Pushshift                |
 
 ---
 
-## 10. Notes
+## 10. AI Customization
 
-- All data is stored in a local SQLite file: `trading_data.db`
-- Modular design makes it easy to replace components (e.g., use PostgreSQL instead of SQLite)
-- GPT-generated signals are returned as structured JSON for consistency
-- The system supports visualization using Streamlit and Plotly
+The system uses OpenAI’s `gpt-3.5-turbo` model by default to generate structured trading signals. You can customize or upgrade the model depending on your preferences or subscription level.
+
+### Change the Model
+In `data_pipeline.py`, locate the `get_ai_full_trading_signal()` function. To switch to GPT-4, modify this line:
+
+```python
+response = client.chat.completions.create(
+    model="gpt-3.5-turbo",  # change to "gpt-4" if available
+```
+
+### Customize the Prompt
+The GPT prompt is designed to balance fundamental, technical, macro, and sentiment inputs for medium-term trades. You can adjust the behavior by editing the `prompt` string to reflect your trading style, such as:
+
+- **Risk tolerance**: conservative vs. aggressive
+- **Investment horizon**: short-term, swing, or long-term
+- **Market conditions**: bullish vs. bearish bias
+
+### Control Temperature
+Temperature determines randomness in GPT outputs:
+
+```python
+temperature=0.2  # lower = more deterministic
+```
+
+You can increase it to 0.6–0.8 for more creative signals or keep it low for consistency.
 
 ---
 
-## 11. Troubleshooting
+## 11. Notes
 
-| Problem                                 | Solution                                                   |
-|----------------------------------------|-------------------------------------------------------------|
-| `'Engine' object has no attribute 'cursor'` | Upgrade `pandas` and `sqlalchemy`                          |
-| `Invalid API key`                      | Check `OPENAI_API_KEY` in your `.env` or shell config       |
-| `Email not sending`                   | Use a Gmail App Password; check `EMAIL_USER`, `EMAIL_PASS`  |
-| Kafka not running                      | Make sure Zookeeper and Kafka are started correctly         |
-| Producer/Consumer not responding       | Check Kafka logs; confirm topic is created and port 9092 open|
+- All data is stored in a local `trading_data.db` file (SQLite)
+- The system uses SQLAlchemy for easy migration to other databases (e.g., PostgreSQL)
+- AI responses are formatted in structured JSON and parsed for execution
+- A Streamlit dashboard (via `main.py show`) offers interactive visualization
 
 ---
 
-For more details, refer to the full codebase or contact the maintainers for guidance on extension or deployment.
+## 12. Troubleshooting
+
+| Problem                                     | Solution                                                   |
+|--------------------------------------------|-------------------------------------------------------------|
+| `'Engine' object has no attribute 'cursor'` | Upgrade `pandas` and `sqlalchemy` to the latest version     |
+| `Invalid API key`                          | Check your `OPENAI_API_KEY` environment variable            |
+| `Email not sending`                        | Use a Gmail App Password and verify credentials             |
+| Kafka won't start                          | Ensure Zookeeper is running before Kafka                    |
+| No streaming data received                 | Confirm both producer and consumer are running on same topic |
+
+---
+
+## 13. Risk Disclosure
+
+> **Disclaimer**: This AI trading system is intended for educational and research purposes only. It is not a registered investment advisor or broker-dealer. The trading signals generated by this system are not financial advice, and past performance does not guarantee future results.
+
+By using this system, you acknowledge that:
+
+- The AI model may generate inaccurate or biased conclusions.
+- No guarantees are made regarding signal profitability.
+- Live trading with real capital based on this system is done at your own risk.
+
+Always consult with a licensed financial advisor before making investment decisions, and thoroughly backtest any strategy in a simulated environment before deploying it in live markets.
