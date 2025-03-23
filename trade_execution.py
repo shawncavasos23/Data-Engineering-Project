@@ -26,6 +26,7 @@ def get_position_size(ticker, max_dollars=5000):
     :param max_dollars: Max dollar amount to allocate per trade (default: $5000)
     :return: Quantity of shares to buy
     """
+
     try:
         # Fetch current market price
         quote = api.get_last_trade(ticker)
@@ -35,6 +36,7 @@ def get_position_size(ticker, max_dollars=5000):
     except Exception as e:
         print(f"Error fetching market price for {ticker}: {e}. Defaulting to 1 share.")
         return 1  # Default to 1 share if price fetch fails
+
 
 def place_trade(ticker, signal, buy_price, sell_price):
     """
@@ -48,12 +50,12 @@ def place_trade(ticker, signal, buy_price, sell_price):
     """
 
     try:
-        # 🔹 Check if market is open before placing trades
+        # Check if market is open before placing trades
         if not is_market_open():
             print(f"Market is closed. Cannot place order for {ticker}.")
             return
 
-        # 🔹 Get current positions
+        # Get current positions
         positions = api.list_positions()
         current_position = next((p for p in positions if p.symbol == ticker), None)
 

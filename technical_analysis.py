@@ -1,7 +1,6 @@
 import pandas as pd  # type: ignore
 import requests  # type: ignore
 import numpy as np  # type: ignore
-import sqlite3
 from db_utils import create_connection
 
 API_KEY = " 67d7d8e193a3a4.14897669"

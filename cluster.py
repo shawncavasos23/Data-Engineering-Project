@@ -4,16 +4,7 @@ import pandas as pd
 from sklearn.cluster import KMeans  # type: ignore
 from sklearn.preprocessing import StandardScaler # type: ignore
 from kneed import KneeLocator  # type: ignore
-
-def create_connection():
-    """Create or connect to the SQLite database."""
-    try:
-        conn = sqlite3.connect("trading_data.db")
-        conn.execute("PRAGMA foreign_keys = ON;")
-        return conn
-    except sqlite3.Error as e:
-        print(f"SQLite Error: {e}")
-        return None
+from db_utils import create_connection
 
 def find_peers(ticker):
     """Find similar stocks using K-Means clustering within the same sector."""
@@ -85,6 +76,7 @@ def find_peers(ticker):
     peers = df[df["cluster"] == ticker_cluster].index.tolist()
     
     return [t for t in peers if t != ticker]
+
 
 if __name__ == "__main__":
     import argparse
