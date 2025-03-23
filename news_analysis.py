@@ -1,58 +1,56 @@
 import feedparser  # type: ignore
-import sqlite3
 import datetime
+import logging
+from urllib.parse import quote
+from sqlalchemy import text  # type: ignore
+from sqlalchemy.engine import Engine  # type: ignore
 
-def initialize_database():
-    """Creates the news database if it does not exist."""
-    with sqlite3.connect("trading_data.db") as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS news (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ticker TEXT NOT NULL,  -- Each article is linked to a specific stock
-                source TEXT,
-                title TEXT NOT NULL,
-                description TEXT,
-                url TEXT NOT NULL UNIQUE,
-                published_at DATETIME NOT NULL,
-                UNIQUE(ticker, title, published_at),
-                FOREIGN KEY (ticker) REFERENCES fundamentals(ticker) ON DELETE CASCADE
-            )
-        """)
-        conn.commit()
+# Further Improvement: Improve relevance for short/ambiguous tickers
+company_alias = {
+    "A": "Agilent Technologies",
+    "T": "AT&T",
+    "F": "Ford Motor Company",
+    "C": "Citigroup",
+    "B": "Barnes Group",
+    "H": "Hyatt Hotels Corporation",
+    "K": "Kellogg Company"
+}
 
-def fetch_news(ticker, limit=10):
-    """Fetches the latest news articles for a given stock ticker from Google News RSS and stores them under the correct ticker."""
 
-    conn = sqlite3.connect("trading_data.db")
-    cursor = conn.cursor()
-
-    # Get the latest `published_at` timestamp for this specific ticker
-    cursor.execute("SELECT MAX(published_at) FROM news WHERE ticker = ?", (ticker,))
-    last_published_at = cursor.fetchone()[0]
-
-    # Convert timestamp to datetime object
-    if last_published_at:
-        try:
-            last_published_at = datetime.datetime.strptime(last_published_at, "%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            last_published_at = None  # Reset if format is invalid
-
-    # Google News RSS URL (fetches news specifically for the given ticker)
-    google_news_rss_url = f"https://news.google.com/rss/search?q={ticker}&hl=en-US&gl=US&ceid=US:en"
+def fetch_news(ticker: str, engine: Engine, limit: int = 10):
+    """Fetches the latest news articles from Google News RSS for a given stock ticker 
+    and inserts only new, relevant records into the database."""
 
     try:
-        # Fetch RSS feed
-        feed = feedparser.parse(google_news_rss_url)
+        # Get the latest timestamp from the database
+        with engine.connect() as conn:
+            result = conn.execute(
+                text("SELECT MAX(published_at) FROM news WHERE ticker = :ticker"),
+                {"ticker": ticker}
+            )
+            last_published_at = result.scalar()
 
-        if feed.status != 200:
-            print(f"Error fetching Google News RSS for {ticker}: {feed.status}")
+        if last_published_at:
+            try:
+                last_published_at = datetime.datetime.strptime(last_published_at, "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                last_published_at = None
+
+        # Build RSS query with company context
+        company_name = company_alias.get(ticker.upper(), ticker)
+        search_query = f'"{company_name}" stock OR {ticker} stock'
+        encoded_query = quote(search_query)
+        rss_url = f"https://news.google.com/rss/search?q={encoded_query}&hl=en-US&gl=US&ceid=US:en"
+
+        feed = feedparser.parse(rss_url)
+
+        if getattr(feed, "status", 200) != 200:
+            logging.warning(f"Google News RSS returned status {feed.status} for {ticker}")
             return
 
-        articles = feed.entries[:limit]  # Limit number of articles
-
+        articles = feed.entries[:limit]
         if not articles:
-            print(f"No new news articles found for {ticker}.")
+            logging.info(f"No new news articles found for {ticker}.")
             return
 
         new_articles = []
@@ -64,49 +62,50 @@ def fetch_news(ticker, limit=10):
             published_at = article.get("published", "")
 
             if not title or not url or not published_at:
-                continue  # Skip incomplete articles
+                continue
 
             try:
                 published_at_dt = datetime.datetime.strptime(published_at, "%a, %d %b %Y %H:%M:%S %Z")
             except ValueError:
-                continue  # Skip article if date format is incorrect
+                continue
 
-            # Only insert new articles published after the last known date
             if last_published_at and published_at_dt <= last_published_at:
                 continue
 
-            new_articles.append((ticker, source, title, description, url, published_at_dt.strftime("%Y-%m-%d %H:%M:%S")))
+            new_articles.append({
+                "ticker": ticker,
+                "source": source,
+                "title": title,
+                "description": description,
+                "url": url,
+                "published_at": published_at_dt.strftime("%Y-%m-%d %H:%M:%S")
+            })
 
-        # Insert new articles into the database
         if new_articles:
-            cursor.executemany("""
-                INSERT OR IGNORE INTO news (ticker, source, title, description, url, published_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, new_articles)
-            conn.commit()
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    INSERT OR IGNORE INTO news (ticker, source, title, description, url, published_at)
+                    VALUES (:ticker, :source, :title, :description, :url, :published_at)
+                """), new_articles)
+
+            logging.info(f"Inserted {len(new_articles)} new articles for {ticker}.")
 
     except Exception as e:
-        print(f"Error fetching news from Google RSS for {ticker}: {e}")
+        logging.error(f"Error fetching news for {ticker}: {e}")
 
-    finally:
-        conn.close()
 
-def run_news_analysis(ticker):
-    """Fetch and store news from Google News RSS, then return the mention count from the database."""
-    fetch_news(ticker)
-
-    conn = sqlite3.connect("trading_data.db")
-    cursor = conn.cursor()
+def run_news_analysis(ticker: str, engine: Engine) -> dict:
+    """Fetch latest news articles and return mention count for the given ticker."""
+    fetch_news(ticker, engine)
 
     try:
-        # Retrieve stored news count for the ticker
-        cursor.execute("SELECT COUNT(*) FROM news WHERE ticker = ?", (ticker,))
-        mention_count = cursor.fetchone()[0] or 0
-        return {"ticker": ticker, "news_mentions": mention_count}
-
+        with engine.connect() as conn:
+            result = conn.execute(
+                text("SELECT COUNT(*) FROM news WHERE ticker = :ticker"),
+                {"ticker": ticker}
+            )
+            count = result.scalar() or 0
+            return {"ticker": ticker, "news_mentions": count}
     except Exception as e:
-        print(f"Database error retrieving news mentions count for {ticker}: {e}")
+        logging.error(f"Error counting news mentions for {ticker}: {e}")
         return {"ticker": ticker, "news_mentions": 0}
-
-    finally:
-        conn.close()
