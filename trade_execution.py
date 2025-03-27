@@ -35,25 +35,36 @@ def get_position_size(ticker, max_dollars=5000):
 
 def place_trade(ticker: str, signal: str, buy_price: float, sell_price: float, stop_loss: float, engine: Engine):
     """
-    Executes a trade based on AI-generated signal and logs it to the database.
+    Logs AI signal and executes trade if market is open.
     """
     try:
-        if not is_market_open():
-            logging.info(f"Market closed. Skipping trade for {ticker}.")
-            return
 
-        # Log the trade signal to the database
+        signal = signal.upper()
+        
+        # Always log the trade signal to the database
         with engine.begin() as conn:
             conn.execute(text("""
-                INSERT INTO trade_signals (ticker, signal, buy_price, sell_price, stop_loss)
-                VALUES (:ticker, :signal, :buy_price, :sell_price, :stop_loss)
+                INSERT INTO trade_signals (
+                    ticker, signal, buy_price, sell_price, stop_loss,
+                    date_generated, status
+                )
+                VALUES (
+                    :ticker, :signal, :buy_price, :sell_price, :stop_loss,
+                    DATE('now'), :status
+                )
             """), {
                 "ticker": ticker,
                 "signal": signal,
                 "buy_price": buy_price,
                 "sell_price": sell_price,
-                "stop_loss": stop_loss
+                "stop_loss": stop_loss,
+                "status": "PENDING" if not is_market_open() else "EXECUTED"
             })
+
+        # If market is closed, skip trade but keep signal
+        if not is_market_open():
+            logging.info(f"Market closed. Trade logged for {ticker} but not executed.")
+            return
 
         # Execute trade
         positions = api.list_positions()
