@@ -1,10 +1,10 @@
 import pandas as pd
 import logging
-from sklearn.cluster import KMeans # type: ignore
-from sklearn.preprocessing import StandardScaler # type: ignore
-from kneed import KneeLocator # type: ignore
-from sqlalchemy import text # type: ignore
-from sqlalchemy.engine import Engine # type: ignore
+from sklearn.cluster import KMeans  # type: ignore
+from sklearn.preprocessing import StandardScaler  # type: ignore
+from kneed import KneeLocator  # type: ignore
+from sqlalchemy import text  # type: ignore
+from sqlalchemy.engine import Engine  # type: ignore
 
 def find_peers(ticker: str, engine: Engine) -> list[str]:
     """Find similar stocks in the same sector using K-Means clustering."""
@@ -39,12 +39,13 @@ def find_peers(ticker: str, engine: Engine) -> list[str]:
         df = pd.DataFrame(data, columns=columns)
         df.set_index("ticker", inplace=True)
 
-        # 4. Impute missing values with sector medians
-        df.fillna(df.median(), inplace=True)
+        # 4. Impute missing values with sector medians (only for numeric columns)
+        numeric_cols = df.select_dtypes(include='number').columns
+        df[numeric_cols] = df[numeric_cols].fillna(df[numeric_cols].median())
 
         # 5. Scale features
         scaler = StandardScaler()
-        features_scaled = scaler.fit_transform(df.values)
+        features_scaled = scaler.fit_transform(df[numeric_cols])
 
         # 6. Find optimal number of clusters
         distortions = []
