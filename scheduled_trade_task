@@ -1,0 +1,10 @@
+@echo off
+REM === Alpha Fusion Scheduled Trading Script ===
+REM Change to your project directory
+cd C:\Users\<YourUsername>\Documents\GitHub\Data-Engineering-Project
+
+REM Run the Python script that updates data and executes AI trades
+python scheduled_task.py
+
+REM Optional: pause to keep the window open (for debugging)
+REM pause
