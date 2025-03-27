@@ -5,28 +5,41 @@ from sqlalchemy import text # type: ignore
 from sqlalchemy.engine import Engine # type: ignore
 import logging
 
-api = APIClient("demo")# test api key    my api key: 67d2fc829c6774.27463149
+API_KEY = "67d7d8e193a3a4.14897669"
 
-def get_stock_data(symbol,interval="d", from_date = None, to_date = None, order='a'):
+def get_stock_data(symbol, exchange="US", interval="daily", output_size="full"):
+    """Fetch historical stock data from the API."""
+    base_url = "https://eodhistoricaldata.com/api/eod/"
+    url = f"{base_url}{symbol}.{exchange}"
+
+    params = {
+        "api_token": API_KEY,
+        "period": interval,
+        "fmt": "json",
+        "order": "desc" if output_size == "full" else "asc",
+    }
+
     try:
-        if from_date is None:
-            from_date = (datetime.today() - timedelta(days=2000)).strftime('%Y-%m-%d')
-        if to_date is None:
-            to_date = datetime.today().strftime('%Y-%m-%d') 
-        resp = api.get_eod_historical_stock_market_data(symbol,interval, from_date=from_date, to_date=to_date, order=order)
-        if not isinstance(resp, list):
-            return f"API error: {resp.get('message', 'Unknown error')}"
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
 
-        df = pd.DataFrame(resp)
+        if not isinstance(data, list):
+            return f"API error: {data.get('message', 'Unknown error')}"
+
+        df = pd.DataFrame(data)
         required_cols = {"date", "open", "high", "low", "close", "adjusted_close", "volume"}
         if not required_cols.issubset(df.columns):
             return f"Error: Missing columns {required_cols - set(df.columns)} in API response."
+
         df["date"] = pd.to_datetime(df["date"])
         df.set_index("date", inplace=True)
         df.rename(columns={"adjusted_close": "adj_close"}, inplace=True)
         df.insert(0, "ticker", symbol)
+
         return df
-    except Exception as e:
+
+    except requests.exceptions.RequestException as e:
         return f"Error fetching data: {e}"
 
 
