@@ -179,15 +179,17 @@ This uses the configured `EMAIL_USER` and `EMAIL_PASS` credentials.
 
 ## 9. Data Sources
 
-| Data Type        | Source                                |
-|------------------|----------------------------------------|
-| Technical Data   | `yfinance`                             |
-| Fundamentals     | Alpha Vantage / FinancialModelingPrep  |
-| Macroeconomics   | FRED (Federal Reserve Economic Data)   |
-| News Headlines   | NewsAPI or custom scraper              |
-| Reddit Sentiment | Reddit API or Pushshift                |
+| Data Type        | Source                                    |
+|------------------|-------------------------------------------|
+| Technical Data   | EOD Historical Data (eodhd)               |
+| Fundamentals     | Financial Modeling Prep / Alpha Vantage   |
+| Macroeconomics   | FRED (Federal Reserve Economic Data)     |
+| News Headlines   | NewsAPI or custom scraper                |
+| Reddit Sentiment | Reddit API or Pushshift                  |
+| Real-Time Data   | yfinance (for real-time price updates)   |
 
 ---
+
 
 ## 10. AI Customization
 
