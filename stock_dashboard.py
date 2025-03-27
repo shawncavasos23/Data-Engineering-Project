@@ -259,7 +259,7 @@ def show_dashboard(ticker):
     display_latest_signal(data["signal"])
 
     st.subheader("Company Fundamentals")
-    st.markdown(format_fundamentals(data["fundamentals"]), unsafe_allow_html=True)
+    format_fundamentals(data["fundamentals"])
 
     col1, col2 = st.columns([7, 5])
 
