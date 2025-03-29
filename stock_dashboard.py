@@ -113,27 +113,35 @@ def format_fundamentals(fundamentals):
 
     row = fundamentals.iloc[0]
 
-    def safe_format(value, is_currency=False):
+    def safe_format(value, is_currency=False, scale=1, unit=""):
         if value is None:
             return "N/A"
+        
+        try:
+            value = float(value)
+        except ValueError:
+            return str(value)
+    
         if is_currency:
-            return f"${value:,.0f}"
-        return f"{value:,.2f}" if isinstance(value, (int, float)) else str(value)
+            formatted_value = f"${(value / scale):,.2f}" if scale != 1 else f"${value:,.2f}"
+        else:
+            formatted_value = f"{(value / scale):,.2f}" if scale != 1 else f"{value:,.2f}"
+        return f"{formatted_value} {unit}".strip()
 
     fundamentals_data = {
         "Sector": safe_format(row.get("sector")),
         "P/E Ratio": safe_format(row.get("pe_ratio")),
-        "Market Cap": safe_format(row.get("market_cap"), is_currency=True),
-        "Revenue": safe_format(row.get("revenue"), is_currency=True),
-        "Return on Assets (ROA)": safe_format(row.get("roa")),
-        "Return on Equity (ROE)": safe_format(row.get("roe")),
+        "Market Cap": safe_format(row.get("market_cap"), is_currency=True, scale=1000000000, unit="Billion"),
+        "Revenue Per Share": safe_format(row.get("revenue"), is_currency=True),
+        "Return on Assets (ROA)": safe_format(row.get("roa"), unit="%"),
+        "Return on Equity (ROE)": safe_format(row.get("roe"), unit="%"),
         "Beta": safe_format(row.get("beta")),
         "Dividend Per Share": safe_format(row.get("dividend_per_share"), is_currency=True),
-        "Total Debt": safe_format(row.get("total_debt"), is_currency=True),
-        "Total Cash": safe_format(row.get("total_cash"), is_currency=True),
-        "Free Cash Flow": safe_format(row.get("free_cash_flow"), is_currency=True),
-        "Operating Cash Flow": safe_format(row.get("operating_cash_flow"), is_currency=True),
-        "Net Income": safe_format(row.get("net_income"), is_currency=True),
+        "Total Debt": safe_format(row.get("total_debt"), is_currency=True, scale=1000000000, unit="Billion"),
+        "Total Cash": safe_format(row.get("total_cash"), is_currency=True, scale=1000000000, unit="Billion"),
+        "Free Cash Flow": safe_format(row.get("free_cash_flow"), is_currency=True, scale=1000000000, unit="Billion"),
+        "Operating Cash Flow": safe_format(row.get("operating_cash_flow"), is_currency=True, scale=1000000000, unit="Billion"),
+        "Net Income": safe_format(row.get("net_income"), is_currency=True, scale=1000000000, unit="Billion"),
     }
 
     columns = st.columns(len(fundamentals_data))

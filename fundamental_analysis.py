@@ -69,7 +69,7 @@ def get_fundamental_data(ticker: str, engine: Engine) -> bool:
             "beta": data["profile"].get("beta"),
             "roa": data["ratios"].get("returnOnAssets"),
             "roe": data["ratios"].get("returnOnEquity"),
-            "dividend_yield": data["dividends"].get("dividendYield"),
+            "dividend_yield": data["ratios"].get("dividendYield"),
             "dividend_per_share": data["dividends"].get("dividend"),
             "total_debt": data["balance_sheet"].get("totalDebt"),
             "total_cash": data["balance_sheet"].get("cashAndShortTermInvestments"),
