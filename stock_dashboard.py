@@ -263,6 +263,7 @@ def show_dashboard(ticker):
 
     col1, col2 = st.columns([7, 5])
 
+    
     with col1:
         st.subheader("Candlestick Chart")
         st.plotly_chart(plot_candlestick_chart(data["technicals"]), use_container_width=True, key="candlestick_chart")
