@@ -13,10 +13,20 @@ from email_utils import send_email
 
 DEFAULT_TICKER = "AAPL"
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-
+# Setup logging to both console and file
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler("controller.log"),
+        logging.StreamHandler()
+    ]
+)
 
 def find_process(name):
+    """
+    Find a process by matching a name or keyword in its command line.
+    """
     for proc in psutil.process_iter(["pid", "name", "cmdline"]):
         try:
             if proc.info["cmdline"] and name in " ".join(proc.info["cmdline"]):
@@ -25,8 +35,10 @@ def find_process(name):
             continue
     return None
 
-
 def kill_process(process):
+    """
+    Attempt to terminate a process gracefully, then forcefully if needed.
+    """
     if process:
         try:
             process.terminate()
@@ -36,8 +48,10 @@ def kill_process(process):
         except psutil.TimeoutExpired:
             process.kill()
 
-
 def stop_all_processes():
+    """
+    Stop Kafka producer, consumer, and Streamlit dashboard if running.
+    """
     producer_proc = find_process("producer.py")
     consumer_proc = find_process("consumer.py")
 
@@ -53,9 +67,25 @@ def stop_all_processes():
     else:
         logging.info("No active Consumer to stop.")
 
+    stop_streamlit()
+
+def stop_streamlit():
+    """
+    Stop the Streamlit dashboard if it is currently running.
+    """
+    for proc in psutil.process_iter(["pid", "cmdline"]):
+        try:
+            if proc.info["cmdline"] and "streamlit" in " ".join(proc.info["cmdline"]):
+                logging.info("Stopping Streamlit dashboard...")
+                kill_process(proc)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            continue
 
 def is_streamlit_running():
-    for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+    """
+    Check if Streamlit is currently running.
+    """
+    for proc in psutil.process_iter(["pid", "cmdline"]):
         try:
             if proc.info["cmdline"] and "streamlit" in " ".join(proc.info["cmdline"]):
                 return True
@@ -63,59 +93,45 @@ def is_streamlit_running():
             continue
     return False
 
-
-def main():
-    parser = argparse.ArgumentParser(description="Trading Dashboard Controller")
-    parser.add_argument(
-        "command",
-        choices=["init", "update", "analyze", "produce", "consume", "stop", "restart", "show", "find_peers", "add"],
-        help="Run a specific pipeline command"
-    )
-    parser.add_argument("--ticker", type=str, help="Stock ticker (e.g., AAPL)")
-    parser.add_argument("--auto", action="store_true", help="Run in auto mode without prompts")
-    parser.add_argument("--email", action="store_true", help="Send trading signal via email (analyze only)")
-    args = parser.parse_args()
-
-    ticker = args.ticker or DEFAULT_TICKER
-
-    if args.command == "init":
+def run_command(command, ticker, args):
+    """
+    Execute a specific command for a given ticker.
+    """
+    if command == "init":
         engine = create_sqlalchemy_engine()
         initialize_database(engine, fetch_data=args.auto)
 
-    elif args.command == "update":
+    elif command == "update":
         update_stock_data(ticker)
 
-    elif args.command == "analyze":
+    elif command == "analyze":
         result = run_analysis_and_execute_trade(ticker)
         logging.info(result)
         if args.email:
             send_email(subject=f"AI Trading Signal for {ticker}", body=result)
 
-    elif args.command == "produce":
+    elif command == "produce":
         if find_process(f"producer.py {ticker}"):
             logging.info(f"Producer already running for {ticker}.")
         else:
             logging.info(f"Starting Kafka Producer for {ticker}...")
             subprocess.Popen(["python", "producer.py", ticker], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    elif args.command == "consume":
+    elif command == "consume":
         if find_process(f"consumer.py {ticker}"):
             logging.info(f"Consumer already running for {ticker}.")
         else:
             logging.info(f"Starting Kafka Consumer for {ticker}...")
             subprocess.Popen(["python", "consumer.py", ticker], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    elif args.command == "stop":
-        stop_all_processes()
-
-    elif args.command == "restart":
+    elif command == "restart":
         logging.info(f"Restarting Kafka Producer and Consumer for {ticker}...")
         stop_all_processes()
         time.sleep(2)
         subprocess.Popen(["python", "producer.py", ticker], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         subprocess.Popen(["python", "consumer.py", ticker], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    elif args.command == "show":
+    elif command == "show":
         if is_streamlit_running():
             logging.info("Streamlit is already running.")
             return
@@ -128,22 +144,72 @@ def main():
             process.terminate()
             sys.exit(0)
 
-    elif args.command == "find_peers":
+    elif command == "find_peers":
         engine = create_sqlalchemy_engine()
         peers = find_peers(ticker, engine)
-        
         print(f"Peers for {ticker}: {', '.join(peers)}")
 
-    elif args.command == "add":
-        if not ticker:
-            logging.error("You must specify a ticker using --ticker.")
-            sys.exit(1)
+    elif command == "add":
         success = add_ticker(ticker)
         if success:
             logging.info(f"Ticker {ticker} added successfully.")
         else:
             logging.error(f"Failed to add ticker {ticker}.")
 
+    elif command == "status":
+        logging.info("Checking running processes...")
+        for name in ["producer.py", "consumer.py", "streamlit"]:
+            proc = find_process(name)
+            if proc:
+                logging.info(f"{name} is running (PID: {proc.pid})")
+            else:
+                logging.info(f"{name} is not running.")
+
+    elif command == "stop":
+        stop_all_processes()
+
+def main():
+    parser = argparse.ArgumentParser(description="Alpha Fusion: Trading Dashboard Controller")
+    parser.add_argument(
+        "command",
+        choices=[
+            "init", "update", "analyze", "produce", "consume",
+            "stop", "restart", "show", "find_peers", "add", "status"
+        ],
+        help="Run a specific pipeline command"
+    )
+    parser.add_argument("--ticker", type=str, help="Stock ticker(s), comma-separated (e.g., AAPL,MSFT)")
+    parser.add_argument("--auto", action="store_true", help="Run in auto mode without prompts")
+    parser.add_argument("--email", action="store_true", help="Send trading signal via email (analyze only)")
+    parser.add_argument("--debug", action="store_true", help="Enable debug-level logging")
+    parser.add_argument("--version", action="version", version="Alpha Fusion CLI v1.0")
+    args = parser.parse_args()
+
+    # Show help if no arguments provided
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(1)
+
+    # Adjust logging level if debug flag is set
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    # Parse tickers safely
+    tickers = [t.strip().upper() for t in (args.ticker or DEFAULT_TICKER).split(",")]
+
+    # Commands safe to apply across multiple tickers
+    multi_ticker_cmds = {"update", "analyze", "add", "find_peers"}
+
+    # Single-ticker commands
+    single_ticker_cmds = {"produce", "consume", "restart", "show", "stop", "status", "init"}
+
+    if args.command in multi_ticker_cmds:
+        for ticker in tickers:
+            run_command(args.command, ticker, args)
+    elif args.command in single_ticker_cmds:
+        run_command(args.command, tickers[0], args)
+    else:
+        logging.error("Unknown command.")
 
 if __name__ == "__main__":
     main()

@@ -4,19 +4,27 @@ import numpy as np
 from sqlalchemy import text # type: ignore
 from sqlalchemy.engine import Engine # type: ignore
 import logging
+import datetime
 
 API_KEY = "67d7d8e193a3a4.14897669"
 
 def get_stock_data(symbol, exchange="US", interval="daily", output_size="full"):
-    """Fetch historical stock data from the API."""
+    """Fetch up to 1 year of historical stock data from the API (due to EODHD limits)."""
     base_url = "https://eodhistoricaldata.com/api/eod/"
     url = f"{base_url}{symbol}.{exchange}"
+
+    # Automatically calculate 1 year back from today
+    end_date = datetime.date.today()
+    start_date = end_date - datetime.timedelta(days=365)
 
     params = {
         "api_token": API_KEY,
         "period": interval,
         "fmt": "json",
         "order": "desc" if output_size == "full" else "asc",
+        "from": start_date.isoformat(),
+        "to": end_date.isoformat(),
+        "limit": 5000
     }
 
     try:

@@ -43,7 +43,7 @@ def fetch_stock_data(ticker, num_news, num_reddit):
     """Fetch available stock data from the database."""
     with sqlite3.connect(DB_PATH) as conn:
         fundamentals = pd.read_sql("SELECT * FROM fundamentals WHERE ticker = ?", conn, params=(ticker,))
-        technicals = pd.read_sql("SELECT * FROM technicals WHERE ticker = ? ORDER BY date DESC LIMIT 100", conn, params=(ticker,))
+        technicals = pd.read_sql("SELECT * FROM technicals WHERE ticker = ? ORDER BY date ASC", conn, params=(ticker,))
         macro_data = pd.read_sql("SELECT * FROM macroeconomic_data ORDER BY date DESC LIMIT 10", conn)
         news = pd.read_sql("SELECT * FROM news WHERE title LIKE ? ORDER BY published_at DESC LIMIT ?", conn, params=(f"%{ticker}%", num_news))
         sentiment = pd.read_sql("SELECT * FROM reddit_mentions WHERE ticker = ? ORDER BY date DESC LIMIT ?", conn, params=(ticker, num_reddit))
@@ -68,17 +68,16 @@ def display_latest_signal(signal_df):
 
     def safe(value):
         return "N/A" if value is None else value
-
-    # Data dictionary with labels and formatted values
+    
     signal_data = {
-        "Trading Decision": safe(row["signal"]),
-        "Entry Price": f"${safe(row['buy_price']):,.2f}",
-        "Target Price": f"${safe(row['sell_price']):,.2f}",
-        "Stop Loss": f"${safe(row['stop_loss']):,.2f}",
-        "Status": safe(row["status"]),
-        "Date": safe(row["date_generated"]),
-        "Order ID": safe(row["order_id"]) or "N/A",
-    }
+    "Trading Decision": safe(row.get("signal")),
+    "Entry Price": f"${safe(row.get('buy_price')):,.2f}" if row.get("buy_price") is not None else "N/A",
+    "Target Price": f"${safe(row.get('sell_price')):,.2f}" if row.get("sell_price") is not None else "N/A",
+    "Stop Loss": f"${safe(row.get('stop_loss')):,.2f}" if row.get("stop_loss") is not None else "N/A",
+    "Status": safe(row.get("status")),
+    "Date": safe(row.get("date_generated")),
+    "Order ID": safe(row.get("order_id")) or "N/A",
+}
 
     st.subheader("Latest AI Trading Signal")
     columns = st.columns(len(signal_data))
