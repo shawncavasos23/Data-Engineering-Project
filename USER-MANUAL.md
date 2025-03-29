@@ -91,6 +91,8 @@ Creates `trading_data.db` and preloads tickers.
 | `restart`      | Restart Kafka for a specific ticker                          |
 | `show`         | Launch Streamlit dashboard                                   |
 | `find_peers`   | Show tickers in same cluster group                           |
+| `status`       | Check if producer, consumer, and dashboard are running       |
+| `list_tickers` | List all tickers currently in the database                   |      
 
 ---
 

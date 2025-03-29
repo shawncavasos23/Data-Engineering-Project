@@ -77,7 +77,5 @@ def fetch_economic_data(engine: Engine):
                     logging.warning(f"Error retrieving {name} ({code}): {e} - Retries left: {retry_attempts}")
                     time.sleep(2 ** (3 - retry_attempts))
 
-        logging.info("Macroeconomic data update completed.")
-
     except Exception as e:
         logging.error(f"Fatal error during macroeconomic fetch: {e}")

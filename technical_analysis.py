@@ -139,7 +139,6 @@ def store_technical_data(df, engine: Engine):
     try:
         with engine.begin() as conn:
             conn.execute(insert_sql, records)
-        logging.info(f"{len(records)} technical records stored for {df['ticker'].iloc[0]}.")
     except Exception as e:
         logging.error(f"Error storing technical data: {e}")
 

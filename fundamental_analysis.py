@@ -31,7 +31,6 @@ def get_fundamental_data(ticker: str, engine: Engine) -> bool:
                 {"ticker": ticker}
             )
             if result.scalar():
-                logging.info(f"Skipping {ticker}: fundamentals already exist.")
                 return True
 
         endpoints = {
@@ -124,7 +123,6 @@ def store_fundamentals(data: dict, engine: Engine):
                     net_income=excluded.net_income
             """), {**data, "cluster": cluster_value})
 
-        logging.info(f"Stored fundamentals for {data['ticker']}.")
 
     except Exception as e:
         logging.error(f"Error storing fundamentals for {data['ticker']}: {e}")

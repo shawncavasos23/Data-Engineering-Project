@@ -1,21 +1,24 @@
-import praw # type: ignore
+import praw  # type: ignore
 import datetime
 import logging
-import nltk # type: ignore
-from nltk.sentiment import SentimentIntensityAnalyzer # type: ignore
-from sqlalchemy import text # type: ignore
-from sqlalchemy.engine import Engine # type: ignore
+import nltk  # type: ignore
+from nltk.sentiment import SentimentIntensityAnalyzer  # type: ignore
+from sqlalchemy import text  # type: ignore
+from sqlalchemy.engine import Engine  # type: ignore
 
-# Download VADER if needed
-nltk.download("vader_lexicon", quiet=True)
-sia = SentimentIntensityAnalyzer()
+# === Lazy-load VADER ===
+try:
+    sia = SentimentIntensityAnalyzer()
+except LookupError:
+    nltk.download("vader_lexicon")
+    sia = SentimentIntensityAnalyzer()
 
-# Reddit API Credentials
+# === Reddit API Credentials ===
 REDDIT_CLIENT_ID = "iGbUVH-wZqqHRysT7wIEfg"
 REDDIT_CLIENT_SECRET = "iHq4HqhFESF3WiyLV6mRvCdNdKR_6Q"
 REDDIT_USER_AGENT = "RefrigeratorFew6940:WSB-Tracker:v1.0"
 
-# Reddit API Client
+# === Reddit API Client ===
 reddit = praw.Reddit(
     client_id=REDDIT_CLIENT_ID,
     client_secret=REDDIT_CLIENT_SECRET,
@@ -52,7 +55,6 @@ def get_recent_ticker_mentions(ticker: str):
 
     return mentions
 
-
 def store_reddit_mentions(ticker: str, engine: Engine):
     """Store Reddit mentions for a given ticker using SQLAlchemy."""
     try:
@@ -77,11 +79,8 @@ def store_reddit_mentions(ticker: str, engine: Engine):
                 VALUES (:ticker, :title, :content, :sentiment, :upvotes, :upvote_ratio, :date, :link)
             """), mentions)
 
-        logging.info(f"Inserted {len(mentions)} Reddit mentions for {ticker}.")
-
     except Exception as e:
         logging.error(f"Error storing Reddit mentions for {ticker}: {e}")
-
 
 def run_reddit_analysis(ticker: str, engine: Engine) -> dict:
     """Run Reddit scrape and return mention count for the ticker."""

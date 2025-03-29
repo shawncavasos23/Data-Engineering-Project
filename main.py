@@ -6,7 +6,7 @@ import psutil  # type: ignore
 import logging
 
 from db_utils import create_sqlalchemy_engine
-from database import initialize_database
+from database import initialize_database, get_all_tickers
 from data_pipeline import add_ticker, update_stock_data, run_analysis_and_execute_trade
 from cluster import find_peers
 from email_utils import send_email
@@ -93,19 +93,18 @@ def is_streamlit_running():
             continue
     return False
 
-def run_command(command, ticker, args):
+def run_command(command, ticker, args, engine):
     """
     Execute a specific command for a given ticker.
     """
     if command == "init":
-        engine = create_sqlalchemy_engine()
         initialize_database(engine, fetch_data=args.auto)
 
     elif command == "update":
         update_stock_data(ticker)
 
     elif command == "analyze":
-        result = run_analysis_and_execute_trade(ticker)
+        result = run_analysis_and_execute_trade(ticker, engine)
         logging.info(result)
         if args.email:
             send_email(subject=f"AI Trading Signal for {ticker}", body=result)
@@ -145,7 +144,6 @@ def run_command(command, ticker, args):
             sys.exit(0)
 
     elif command == "find_peers":
-        engine = create_sqlalchemy_engine()
         peers = find_peers(ticker, engine)
         print(f"Peers for {ticker}: {', '.join(peers)}")
 
@@ -168,13 +166,25 @@ def run_command(command, ticker, args):
     elif command == "stop":
         stop_all_processes()
 
+    elif command == "list_tickers":
+        tickers = sorted(get_all_tickers(engine))
+        if tickers:
+            print("\nAvailable tickers:")
+            for i in range(0, len(tickers), 10):
+                print(", ".join(tickers[i:i+10]))
+            print(f"\nTotal: {len(tickers)} tickers\n")
+        else:
+            logging.warning("No tickers found in the database.")
+
 def main():
+    engine = create_sqlalchemy_engine()
+
     parser = argparse.ArgumentParser(description="Alpha Fusion: Trading Dashboard Controller")
     parser.add_argument(
         "command",
         choices=[
             "init", "update", "analyze", "produce", "consume",
-            "stop", "restart", "show", "find_peers", "add", "status"
+            "stop", "restart", "show", "find_peers", "add", "status", "list_tickers"
         ],
         help="Run a specific pipeline command"
     )
@@ -183,12 +193,13 @@ def main():
     parser.add_argument("--email", action="store_true", help="Send trading signal via email (analyze only)")
     parser.add_argument("--debug", action="store_true", help="Enable debug-level logging")
     parser.add_argument("--version", action="version", version="Alpha Fusion CLI v1.0")
-    args = parser.parse_args()
-
+    
     # Show help if no arguments provided
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit(1)
+
+    args = parser.parse_args()
 
     # Adjust logging level if debug flag is set
     if args.debug:
@@ -200,16 +211,20 @@ def main():
     # Commands safe to apply across multiple tickers
     multi_ticker_cmds = {"update", "analyze", "add", "find_peers"}
 
-    # Single-ticker commands
-    single_ticker_cmds = {"produce", "consume", "restart", "show", "stop", "status", "init"}
+    # Single-ticker or general commands
+    single_ticker_cmds = {
+        "produce", "consume", "restart", "show", "stop", "status", "init", "list_tickers"
+    }
 
     if args.command in multi_ticker_cmds:
         for ticker in tickers:
-            run_command(args.command, ticker, args)
+            run_command(args.command, ticker, args, engine)
     elif args.command in single_ticker_cmds:
-        run_command(args.command, tickers[0], args)
+        run_command(args.command, tickers[0], args, engine)
     else:
         logging.error("Unknown command.")
+        parser.print_help()
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

@@ -5,16 +5,61 @@ from urllib.parse import quote
 from sqlalchemy import text  # type: ignore
 from sqlalchemy.engine import Engine  # type: ignore
 
-# Further Improvement: Improve relevance for short/ambiguous tickers
+# Improve relevance for short or ambiguous tickers
 company_alias = {
+    # Single-letter tickers
     "A": "Agilent Technologies",
-    "T": "AT&T",
-    "F": "Ford Motor Company",
-    "C": "Citigroup",
     "B": "Barnes Group",
+    "C": "Citigroup",
+    "D": "Dominion Energy",
+    "E": "ENI S.p.A.",
+    "F": "Ford Motor Company",
+    "G": "Genpact",
     "H": "Hyatt Hotels Corporation",
-    "K": "Kellogg Company"
+    "I": "Intelsat",
+    "J": "Jacobs Solutions",
+    "K": "Kellogg Company",
+    "L": "Loews Corporation",
+    "M": "Macy's",
+    "N": "NetSuite (Oracle)",
+    "O": "Realty Income Corp",
+    "P": "Pandora Media",
+    "Q": "Quintiles IMS",
+    "R": "Ryder System",
+    "S": "Sprint Corporation",
+    "T": "AT&T",
+    "U": "Unity Software",
+    "V": "Visa Inc.",
+    "W": "Wayfair",
+    "X": "United States Steel Corp",
+    "Y": "Alleghany Corporation",
+    "Z": "Zillow Group",
+
+    # Ambiguous real-word tickers
+    "ALL": "Allstate Corporation",
+    "IT": "Gartner Inc.",
+    "LOW": "Lowe's Companies",
+    "NOW": "ServiceNow Inc.",
+    "KEY": "KeyCorp",
+    "FIT": "Fitbit Inc.",
+    "LOVE": "Lovesac Company",
+    "TREE": "LendingTree",
+    "FAST": "Fastenal Company",
+    "BIG": "Big Lots",
+    "LIFE": "aTyr Pharma",
+    "REAL": "The RealReal Inc.",
+    "RUN": "Sunrun Inc.",
+    "WORK": "Slack Technologies",
+    "PLAY": "Dave & Buster’s Entertainment",
+    "FUN": "Cedar Fair",
+    "SAVE": "Spirit Airlines",
+    "HOG": "Harley-Davidson",
+    "CARS": "Cars.com",
+    "DUK": "Duke Energy",
+    "SEE": "Sealed Air Corp",
+    "TRIP": "TripAdvisor"
 }
+
 
 
 def fetch_news(ticker: str, engine: Engine, limit: int = 10):
@@ -88,7 +133,6 @@ def fetch_news(ticker: str, engine: Engine, limit: int = 10):
                     VALUES (:ticker, :source, :title, :description, :url, :published_at)
                 """), new_articles)
 
-            logging.info(f"Inserted {len(new_articles)} new articles for {ticker}.")
 
     except Exception as e:
         logging.error(f"Error fetching news for {ticker}: {e}")

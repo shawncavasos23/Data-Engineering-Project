@@ -1,7 +1,7 @@
 import alpaca_trade_api as tradeapi  # type: ignore
 import logging
-from sqlalchemy import text # type: ignore
-from sqlalchemy.engine import Engine # type: ignore
+from sqlalchemy import text  # type: ignore
+from sqlalchemy.engine import Engine  # type: ignore
 
 # Load Alpaca API credentials
 api_key = "PKAC0YX4NUEZD73KJUSM"
@@ -37,14 +37,15 @@ def place_trade(ticker: str, signal: str, buy_price: float, sell_price: float, s
     """
     Logs AI signal and executes trade if market is open.
     """
+    signal = signal.upper()
     try:
+        market_open = is_market_open()
+        trade_status = "EXECUTED" if market_open else "PENDING"
 
-        signal = signal.upper()
-        
-        # Always log the trade signal to the database
+        # Log signal to database (ignore duplicate same-day entries)
         with engine.begin() as conn:
             conn.execute(text("""
-                INSERT INTO trade_signals (
+                INSERT OR IGNORE INTO trade_signals (
                     ticker, signal, buy_price, sell_price, stop_loss,
                     date_generated, status
                 )
@@ -58,15 +59,13 @@ def place_trade(ticker: str, signal: str, buy_price: float, sell_price: float, s
                 "buy_price": buy_price,
                 "sell_price": sell_price,
                 "stop_loss": stop_loss,
-                "status": "PENDING" if not is_market_open() else "EXECUTED"
+                "status": trade_status
             })
 
-        # If market is closed, skip trade but keep signal
-        if not is_market_open():
+        if not market_open:
             logging.info(f"Market closed. Trade logged for {ticker} but not executed.")
             return
 
-        # Execute trade
         positions = api.list_positions()
         current_position = next((p for p in positions if p.symbol == ticker), None)
 
@@ -86,7 +85,21 @@ def place_trade(ticker: str, signal: str, buy_price: float, sell_price: float, s
                 limit_price=buy_price,
                 time_in_force="gtc"
             )
+
             logging.info(f"BUY Order Placed: {ticker} at ${buy_price} (Order ID: {order.id})")
+
+            # Update database with order ID and execution timestamp
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    UPDATE trade_signals
+                    SET executed_at = CURRENT_TIMESTAMP,
+                        order_id = :order_id,
+                        status = 'EXECUTED'
+                    WHERE ticker = :ticker AND date_generated = DATE('now')
+                """), {
+                    "order_id": order.id,
+                    "ticker": ticker
+                })
 
         elif signal == "SELL":
             if current_position:
@@ -101,7 +114,20 @@ def place_trade(ticker: str, signal: str, buy_price: float, sell_price: float, s
                     limit_price=sell_price,
                     time_in_force="gtc"
                 )
+
                 logging.info(f"SELL Order Placed: {ticker} at ${sell_price} (Order ID: {order.id})")
+
+                with engine.begin() as conn:
+                    conn.execute(text("""
+                        UPDATE trade_signals
+                        SET executed_at = CURRENT_TIMESTAMP,
+                            order_id = :order_id,
+                            status = 'EXECUTED'
+                        WHERE ticker = :ticker AND date_generated = DATE('now')
+                    """), {
+                        "order_id": order.id,
+                        "ticker": ticker
+                    })
             else:
                 logging.info(f"No existing position in {ticker} to sell.")
         else:
@@ -109,5 +135,26 @@ def place_trade(ticker: str, signal: str, buy_price: float, sell_price: float, s
 
     except tradeapi.rest.APIError as e:
         logging.error(f"Alpaca API Error for {ticker}: {e}")
+        with engine.begin() as conn:
+            conn.execute(text("""
+                UPDATE trade_signals
+                SET status = 'FAILED',
+                    error_message = :error
+                WHERE ticker = :ticker AND date_generated = DATE('now')
+            """), {
+                "error": str(e),
+                "ticker": ticker
+            })
+
     except Exception as e:
         logging.error(f"Trade Execution Error for {ticker}: {e}")
+        with engine.begin() as conn:
+            conn.execute(text("""
+                UPDATE trade_signals
+                SET status = 'FAILED',
+                    error_message = :error
+                WHERE ticker = :ticker AND date_generated = DATE('now')
+            """), {
+                "error": str(e),
+                "ticker": ticker
+            })

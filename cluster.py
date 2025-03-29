@@ -79,13 +79,13 @@ def find_peers(ticker: str, engine: Engine) -> list[str]:
 # Optional: CLI Interface
 if __name__ == "__main__":
     import argparse
-    from db_utils import get_sqlalchemy_engine
+    from db_utils import create_sqlalchemy_engine
 
     parser = argparse.ArgumentParser(description="Find similar stocks using clustering.")
     parser.add_argument("ticker", type=str, help="Stock ticker to find peers for")
     args = parser.parse_args()
 
-    engine = get_sqlalchemy_engine()
+    engine = create_sqlalchemy_engine()
     peers = find_peers(args.ticker.upper(), engine)
 
     if peers:
