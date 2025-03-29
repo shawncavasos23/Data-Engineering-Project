@@ -8,6 +8,7 @@ import openai
 import json
 from sqlalchemy import text  # type: ignore
 from sqlalchemy.exc import SQLAlchemyError  # type: ignore
+import re
 
 from technical_analysis import run_technical_analysis
 from fundamental_analysis import get_fundamental_data
@@ -23,25 +24,29 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 
 engine = create_sqlalchemy_engine()
 
-def add_ticker(ticker: str):
+def add_ticker(ticker: str) -> bool:
     """Add a new ticker to all relevant tables if it doesn't already exist."""
     try:
         with engine.begin() as conn:
-            result = conn.execute(text("SELECT 1 FROM fundamentals WHERE ticker = :ticker"), {"ticker": ticker})
-            exists = result.scalar()
-
-            if exists:
-                logging.info(f"Ticker {ticker} already exists.")
-                return
+            result = conn.execute(
+                text("SELECT 1 FROM fundamentals WHERE ticker = :ticker"),
+                {"ticker": ticker}
+            )
+            if result.scalar():
+                return True 
 
             conn.execute(text("INSERT INTO fundamentals (ticker) VALUES (:ticker)"), {"ticker": ticker})
             conn.execute(text("INSERT INTO technicals (ticker, date) VALUES (:ticker, DATE('now'))"), {"ticker": ticker})
-            conn.execute(text("INSERT INTO trade_signals (ticker, signal, date_generated) VALUES (:ticker, 'HOLD', DATE('now'))"), {"ticker": ticker})
-            logging.info(f"Ticker {ticker} added to database.")
+            conn.execute(text(
+                "INSERT INTO trade_signals (ticker, signal, date_generated) "
+                "VALUES (:ticker, 'HOLD', DATE('now'))"
+            ), {"ticker": ticker})
+
+        return True
 
     except SQLAlchemyError as e:
-        logging.error(f"Database error when adding ticker {ticker}: {e}")
-
+        logging.error(f"Database error when adding ticker {ticker}: {e}", exc_info=True)
+        return False
 
 def update_stock_data(ticker: str):
     """Update data for a given ticker using all analysis modules."""
@@ -63,7 +68,6 @@ def update_stock_data(ticker: str):
 
     except Exception as e:
         logging.error(f"Error updating data for {ticker}: {e}")
-
 
 def extract_existing_data(ticker: str) -> dict:
     """Extract stock, technical, macro, sentiment, and peer data for AI analysis."""
@@ -131,10 +135,17 @@ def extract_existing_data(ticker: str) -> dict:
             "peer_companies": []
         }
 
+from sqlalchemy import text  # type: ignore
 
-def run_analysis_and_execute_trade(ticker: str) -> str:
+from sqlalchemy import create_engine, text  # type: ignore
+from sqlalchemy.exc import SQLAlchemyError  # type: ignore
+import logging
+import json
+
+def run_analysis_and_execute_trade(ticker: str, engine) -> str:
     """Run full analysis pipeline and execute trade if signal is generated."""
     logging.info(f"Running AI-powered analysis for {ticker}...")
+
     data = extract_existing_data(ticker)
 
     signal = get_ai_full_trading_signal(
@@ -148,6 +159,7 @@ def run_analysis_and_execute_trade(ticker: str) -> str:
     )
 
     logging.info(f"\nAI Trading Signal for {ticker}:\n{json.dumps(signal, indent=2)}")
+
     send_email(subject=f"AI Trading Analysis for {ticker}", body=json.dumps(signal, indent=2))
 
     if "trading_decision" in signal:
@@ -155,6 +167,27 @@ def run_analysis_and_execute_trade(ticker: str) -> str:
         buy_price = float(signal.get("entry_price", 10.0))
         sell_price = float(signal.get("target_price", 12.0))
         stop_loss = float(signal.get("stop_loss", 9.0))
+
+        with engine.begin() as conn:
+            query = text("""
+                INSERT INTO trade_signals (ticker, signal, buy_price, sell_price, stop_loss, date_generated)
+                VALUES (:ticker, :signal, :buy_price, :sell_price, :stop_loss, DATE('now'))
+                ON CONFLICT(ticker, date_generated) DO UPDATE SET
+                    signal=excluded.signal,
+                    buy_price=excluded.buy_price,
+                    sell_price=excluded.sell_price,
+                    stop_loss=excluded.stop_loss
+            """)
+            try:
+                conn.execute(query, {
+                    "ticker": ticker,
+                    "signal": decision,
+                    "buy_price": buy_price,
+                    "sell_price": sell_price,
+                    "stop_loss": stop_loss
+                })
+            except SQLAlchemyError as e:
+                logging.error(f"Error storing trade signal for {ticker}: {e}")
 
         if decision == "BUY":
             place_trade(ticker, "buy", buy_price, sell_price, stop_loss, engine)
@@ -209,6 +242,7 @@ def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_d
         """
 
         client = openai.OpenAI(api_key=api_key)
+        logging.debug(f"Sending prompt to OpenAI for {ticker}")
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
@@ -217,13 +251,15 @@ def get_ai_full_trading_signal(ticker, macro_data, fundamental_data, technical_d
         )
 
         raw = response.choices[0].message.content.strip()
+        logging.debug(f"Received raw GPT response: {raw[:300]}...")
 
         try:
             signal = json.loads(raw)
             return signal
         except json.JSONDecodeError:
             logging.warning("GPT response not valid JSON. Returning raw text.")
-            return {"raw_output": raw}
+            raw_clean = re.sub(r"```json|```", "", raw).strip()
+            return {"raw_output": raw_clean}
 
     except Exception as e:
         logging.error(f"Error generating AI trading signal: {e}")
