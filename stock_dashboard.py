@@ -3,6 +3,7 @@ import streamlit as st  # type: ignore
 import sqlite3
 import pandas as pd  # type: ignore
 import plotly.graph_objects as go  # type: ignore
+import plotly.express as px
 
 # Set Streamlit page config
 st.set_page_config(layout="wide", page_title="Stock Analysis Dashboard")
@@ -39,14 +40,14 @@ st.markdown(
 DB_PATH = "trading_data.db"
 
 @st.cache_data
-def fetch_stock_data(ticker, num_news, num_reddit):
+def fetch_stock_data(ticker, num_news):
     """Fetch available stock data from the database."""
     with sqlite3.connect(DB_PATH) as conn:
         fundamentals = pd.read_sql("SELECT * FROM fundamentals WHERE ticker = ?", conn, params=(ticker,))
-        technicals = pd.read_sql("SELECT * FROM technicals WHERE ticker = ? ORDER BY date ASC", conn, params=(ticker,))
+        technicals = pd.read_sql("SELECT * FROM technicals WHERE ticker = ? ORDER BY date DESC LIMIT 100", conn, params=(ticker,))
         macro_data = pd.read_sql("SELECT * FROM macroeconomic_data ORDER BY date DESC LIMIT 10", conn)
         news = pd.read_sql("SELECT * FROM news WHERE title LIKE ? ORDER BY published_at DESC LIMIT ?", conn, params=(f"%{ticker}%", num_news))
-        sentiment = pd.read_sql("SELECT * FROM reddit_mentions WHERE ticker = ? ORDER BY date DESC LIMIT ?", conn, params=(ticker, num_reddit))
+        sentiment = pd.read_sql("SELECT * FROM reddit_mentions WHERE ticker = ? ORDER BY date DESC", conn, params=(ticker,))
         signal = pd.read_sql("SELECT * FROM trade_signals WHERE ticker = ? ORDER BY date_generated DESC LIMIT 1", conn, params=(ticker,))
 
     return {
@@ -68,16 +69,17 @@ def display_latest_signal(signal_df):
 
     def safe(value):
         return "N/A" if value is None else value
-    
+
+    # Data dictionary with labels and formatted values
     signal_data = {
-    "Trading Decision": safe(row.get("signal")),
-    "Entry Price": f"${safe(row.get('buy_price')):,.2f}" if row.get("buy_price") is not None else "N/A",
-    "Target Price": f"${safe(row.get('sell_price')):,.2f}" if row.get("sell_price") is not None else "N/A",
-    "Stop Loss": f"${safe(row.get('stop_loss')):,.2f}" if row.get("stop_loss") is not None else "N/A",
-    "Status": safe(row.get("status")),
-    "Date": safe(row.get("date_generated")),
-    "Order ID": safe(row.get("order_id")) or "N/A",
-}
+        "Trading Decision": safe(row["signal"]),
+        "Entry Price": f"${safe(row['buy_price']):,.2f}",
+        "Target Price": f"${safe(row['sell_price']):,.2f}",
+        "Stop Loss": f"${safe(row['stop_loss']):,.2f}",
+        "Status": safe(row["status"]),
+        "Date": safe(row["date_generated"]),
+        "Order ID": safe(row["order_id"]) or "N/A",
+    }
 
     st.subheader("Latest AI Trading Signal")
     columns = st.columns(len(signal_data))
@@ -261,7 +263,7 @@ def show_dashboard(ticker):
     num_news_articles = st.sidebar.slider("Number of News Articles", 1, 10, 5)
     num_reddit_mentions = st.sidebar.slider("Number of Reddit Mentions", 1, 10, 6)
 
-    data = fetch_stock_data(ticker, num_news_articles, num_reddit_mentions)
+    data = fetch_stock_data(ticker, num_news_articles)
 
     display_latest_signal(data["signal"])
 
@@ -270,7 +272,6 @@ def show_dashboard(ticker):
 
     col1, col2 = st.columns([7, 5])
 
-    
     with col1:
         st.subheader("Candlestick Chart")
         st.plotly_chart(plot_candlestick_chart(data["technicals"]), use_container_width=True, key="candlestick_chart")
@@ -294,15 +295,43 @@ def show_dashboard(ticker):
                 </div>
                 """, unsafe_allow_html=True)
 
+        reddit = data['sentiment']
+        reddit.sort_values('impact_score', ascending=False, inplace=True)
+        reddit_pos, reddit_neg = reddit.head(num_reddit_mentions), reddit.tail(num_reddit_mentions)
+        reddit['sentiment_category'] = reddit['sentiment'].apply(lambda x: 'Positive' if x>0 else 'Negative')
         st.subheader("Reddit Sentiment")
-        for _, row in data["sentiment"].iterrows():
-            st.markdown(f"""
-                <div class="info-card">
-                    <a href="{row['link']}" target="_blank">{row['title']}</a>
-                    <p>Upvotes: {row['upvotes']} | Score: {row['upvote_ratio']}</p>
-                    <p>{row['date']}</p>
-                </div>
-                """, unsafe_allow_html=True)
+        # Plot pie chart for all comments
+        fig_pie = px.pie(
+        reddit["sentiment"],
+        names=reddit['sentiment_category'],
+        title='Emotional distribution ratio',
+        hole=0.3,
+        color_discrete_sequence=['#2ecc71', '#95a5a6']
+        )
+        st.plotly_chart(fig_pie, use_container_width=True)
+
+        # List top positive and negative columns
+        left_col, right_col = st.columns([1, 1])
+        with left_col:
+            st.markdown(f'Top {num_reddit_mentions} positive tickers')
+            for _, row in reddit_pos.iterrows():
+                st.markdown(f"""
+                    <div class="info-card">
+                        <a href="{row['link']}" target="_blank">{row['title']}</a>
+                        <p>Upvotes: {row['upvotes']} | Score: {row['upvote_ratio']}</p>
+                        <p>{row['date']}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+        with right_col:
+            st.markdown(f'Top {num_reddit_mentions} negative tickers')
+            for _, row in reddit_neg.iterrows():
+                st.markdown(f"""
+                    <div class="info-card">
+                        <a href="{row['link']}" target="_blank">{row['title']}</a>
+                        <p>Upvotes: {row['upvotes']} | Score: {row['upvote_ratio']}</p>
+                        <p>{row['date']}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
 
     st.subheader("Macroeconomic Indicators")
     format_macroeconomic_data(data["macro_data"])

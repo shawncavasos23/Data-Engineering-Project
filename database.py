@@ -30,11 +30,9 @@ def initialize_database(engine, fetch_data=False):
     """Creates tables and initializes the schema."""
     logging.info("Initializing database schema...")
 
-    is_postgres = engine.dialect.name == "postgresql"
-    id_type = "SERIAL PRIMARY KEY" if is_postgres else "INTEGER PRIMARY KEY AUTOINCREMENT"
-
     schema_statements = [
-        f"""
+        # Fundamentals Table
+        """
         CREATE TABLE IF NOT EXISTS fundamentals (
             ticker TEXT PRIMARY KEY,
             sector TEXT DEFAULT NULL,
@@ -54,9 +52,10 @@ def initialize_database(engine, fetch_data=False):
             cluster INTEGER DEFAULT NULL
         );
         """,
-        f"""
+        # Technicals Table
+        """
         CREATE TABLE IF NOT EXISTS technicals (
-            id {id_type},
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             ticker TEXT NOT NULL,
             date DATE NOT NULL,
             open REAL,
@@ -81,18 +80,20 @@ def initialize_database(engine, fetch_data=False):
             FOREIGN KEY (ticker) REFERENCES fundamentals(ticker) ON DELETE CASCADE
         );
         """,
-        f"""
+        # Macroeconomic Table
+        """
         CREATE TABLE IF NOT EXISTS macroeconomic_data (
-            id {id_type},
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             indicator TEXT NOT NULL,
             date DATE NOT NULL,
             value REAL,
             UNIQUE(indicator, date)
         );
         """,
-        f"""
+        # News Table
+        """
         CREATE TABLE IF NOT EXISTS news (
-            id {id_type},
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             ticker TEXT NOT NULL,
             source TEXT,
             title TEXT NOT NULL,
@@ -103,9 +104,10 @@ def initialize_database(engine, fetch_data=False):
             FOREIGN KEY (ticker) REFERENCES fundamentals(ticker) ON DELETE CASCADE
         );
         """,
-        f"""
+        # Reddit Mentions Table
+        """
         CREATE TABLE IF NOT EXISTS reddit_mentions (
-            id {id_type},
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             ticker TEXT NOT NULL,
             title TEXT NOT NULL,
             content TEXT DEFAULT '',
@@ -114,13 +116,15 @@ def initialize_database(engine, fetch_data=False):
             upvote_ratio REAL DEFAULT 0.0,
             date DATE NOT NULL DEFAULT (DATE('now')),
             link TEXT DEFAULT '',
+            impact_score REAL DEFAULT 0.0,
             UNIQUE(ticker, title, date),
             FOREIGN KEY (ticker) REFERENCES fundamentals(ticker) ON DELETE CASCADE
         );
         """,
-        f"""
+        # Trade Signals Table with tracking
+        """
         CREATE TABLE IF NOT EXISTS trade_signals (
-            id {id_type},
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             ticker TEXT NOT NULL,
             signal TEXT NOT NULL CHECK(signal IN ('BUY', 'SELL', 'HOLD')),
             buy_price NUMERIC(10,2),
@@ -131,7 +135,6 @@ def initialize_database(engine, fetch_data=False):
             status TEXT DEFAULT 'PENDING' CHECK(status IN ('PENDING', 'EXECUTED', 'FAILED')),
             order_id TEXT DEFAULT NULL,
             error_message TEXT DEFAULT NULL,
-            UNIQUE(ticker, date_generated),
             FOREIGN KEY (ticker) REFERENCES fundamentals(ticker) ON DELETE CASCADE
         );
         """,
@@ -145,16 +148,10 @@ def initialize_database(engine, fetch_data=False):
 
     try:
         with engine.begin() as conn:
-            # Enable Write-Ahead Logging (WAL) for SQLite to improve concurrency
-            
-            if engine.dialect.name == "sqlite":
-                sqlite_connection = conn.connection
-                sqlite_connection.execute("PRAGMA journal_mode=WAL;")
-                sqlite_connection.execute("PRAGMA foreign_keys=ON;")
-            
             for stmt in schema_statements:
                 conn.execute(text(stmt))
 
+            # Preload tickers
             tickers = [
                 "AAPL", "MSFT", "AMZN", "TSLA", "NVDA", "GOOGL", "META", "AMD", "NFLX", "BABA",
                 "INTC", "PYPL", "CSCO", "QCOM", "ORCL", "IBM", "ADBE", "CRM", "TXN", "AVGO",
@@ -177,7 +174,7 @@ def initialize_database(engine, fetch_data=False):
     except SQLAlchemyError as e:
         logging.error(f"SQLAlchemy error during schema creation: {e}")
 
-    # Optional: Fetch data
+    # Optional data fetch
     if fetch_data:
         logging.info("Fetching stock data for all tickers...")
         tickers = get_all_tickers(engine)
