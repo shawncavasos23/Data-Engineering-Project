@@ -10,7 +10,7 @@
 
 The AI Trading System is a comprehensive, modular solution for generating data-driven stock trading signals using artificial intelligence. It integrates structured and unstructured financial data and applies a large language model (LLM) to perform context-aware analysis.
 
-### 🔧 Key Features:
+### Key Features:
 - Fundamental, technical, macroeconomic, and sentiment analysis
 - Peer clustering using sector and financial attributes
 - Real-time price streaming via Kafka
